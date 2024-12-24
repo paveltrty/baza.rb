@@ -190,6 +190,20 @@ class TestBazaRb < Minitest::Test
     )
   end
 
+  def test_simple_lock_success
+    WebMock.disable_net_connect!
+    stub_request(:get, 'https://example.org/lock/name?owner=owner').to_return(status: 302)
+    BazaRb.new('example.org', 443, '000').lock('name', 'owner')
+  end
+
+  def test_simple_lock_failure
+    WebMock.disable_net_connect!
+    stub_request(:get, 'https://example.org/lock/name?owner=owner').to_return(status: 409)
+    assert_raises do
+      BazaRb.new('example.org', 443, '000').lock('name', 'owner')
+    end
+  end
+
   def test_push_with_server_failure
     WebMock.disable_net_connect!
     stub_request(:put, 'https://example.org/push/foo')

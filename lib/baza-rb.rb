@@ -252,16 +252,18 @@ class BazaRb
     raise 'The "name" of the job may not be empty' if name.empty?
     raise 'The "owner" of the lock is nil' if owner.nil?
     elapsed(@loog) do
-      with_retries(max_tries: @retries, rescue: TimedOut) do
-        checked(
-          Typhoeus::Request.get(
-            home.append('lock').append(name).add(owner:).to_s,
-            headers:
-          ),
-          302
-        )
-      end
-      throw :"Job name '#{name}' locked at #{@host}"
+      ret =
+        with_retries(max_tries: @retries, rescue: TimedOut) do
+          checked(
+            Typhoeus::Request.get(
+              home.append('lock').append(name).add(owner:).to_s,
+              headers:
+            ),
+            [302, 409]
+          )
+        end
+      throw :"Job name '#{name}' locked at #{@host}" if ret.code == 302
+      raise "Failed to lock '#{name}' job at #{@host}, it's most probably already locked"
     end
   end
 
