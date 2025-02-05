@@ -27,7 +27,6 @@ AllCops:
   TargetRubyVersion: 3.2
   SuggestExtensions: false
   NewCops: enable
-
 Style/GlobalVars:
   Enabled: false
 Lint/NestedMethodDefinition:
@@ -64,3 +63,6 @@ Layout/MultilineAssignmentLayout:
   Enabled: true
 Naming/FileName:
   Enabled: false
+required:
+  - rubocop-rake
+  - rubocop-minitest
