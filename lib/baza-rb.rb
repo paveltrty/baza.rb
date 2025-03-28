@@ -70,7 +70,7 @@ class BazaRb
       'Content-Length' => data.size
     )
     unless meta.empty?
-      hdrs = hdrs.merge('X-Zerocracy-Meta' => meta.map { |v| Base64.encode64(v).gsub("\n", '') }.join(' '))
+      hdrs = hdrs.merge('X-Zerocracy-Meta' => meta.map { |v| Base64.encode64(v).delete("\n") }.join(' '))
     end
     params = {
       connecttimeout: @timeout,
@@ -580,7 +580,7 @@ class BazaRb
   end
 
   def gzip(data)
-    ''.dup.tap do |result|
+    (+'').tap do |result|
       io = StringIO.new(result)
       gz = Zlib::GzipWriter.new(io)
       gz.write(data)
