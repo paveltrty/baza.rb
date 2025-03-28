@@ -21,9 +21,16 @@ require_relative '../lib/baza-rb'
 # Copyright:: Copyright (c) 2024 Yegor Bugayenko
 # License:: MIT
 class TestBazaRb < Minitest::Test
+  # The token to use for testing:
   TOKEN = '00000000-0000-0000-0000-000000000000'
+
+  # The host of the production platform:
   HOST = 'api.zerocracy.com'
+
+  # The HTTPS port to use:
   PORT = 443
+
+  # Live agent:
   LIVE = BazaRb.new(HOST, PORT, TOKEN, loog: Loog::VERBOSE)
 
   def test_live_push
@@ -85,7 +92,7 @@ class TestBazaRb < Minitest::Test
   def test_get_csrf_token
     WebMock.enable_net_connect!
     skip('We are offline') unless we_are_online
-    assert(LIVE.csrf.length > 10)
+    assert_operator(LIVE.csrf.length, :>, 10)
   end
 
   def test_transfer_payment
@@ -329,6 +336,6 @@ class TestBazaRb < Minitest::Test
   end
 
   def we_are_online
-    @online ||= Net::Ping::External.new('8.8.8.8').ping?
+    @we_are_online ||= Net::Ping::External.new('8.8.8.8').ping?
   end
 end
