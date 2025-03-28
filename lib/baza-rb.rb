@@ -9,8 +9,11 @@ require 'fileutils'
 require 'iri'
 require 'loog'
 require 'retries'
+require 'stringio'
 require 'tago'
+require 'tempfile'
 require 'typhoeus'
+require 'zlib'
 require_relative 'baza-rb/version'
 
 # Interface to the API of zerocracy.com.
@@ -20,7 +23,7 @@ require_relative 'baza-rb/version'
 # results returned.
 #
 # Author:: Yegor Bugayenko (yegor256@gmail.com)
-# Copyright:: Copyright (c) 2024 Yegor Bugayenko
+# Copyright:: Copyright (c) 2024-2025 Yegor Bugayenko
 # License:: MIT
 class BazaRb
   # When the server failed (503).
@@ -101,7 +104,7 @@ class BazaRb
   def pull(id)
     raise 'The ID of the job is nil' if id.nil?
     raise 'The ID of the job must be a positive integer' unless id.positive?
-    data = 0
+    data = ''
     elapsed(@loog) do
       Tempfile.open do |file|
         File.open(file, 'wb') do |f|
@@ -209,7 +212,7 @@ class BazaRb
   def verified(id)
     raise 'The ID of the job is nil' if id.nil?
     raise 'The ID of the job must be a positive integer' unless id.positive?
-    verdict = 0
+    verdict = ''
     elapsed(@loog) do
       ret =
         with_retries(max_tries: @retries, rescue: TimedOut) do
@@ -279,7 +282,7 @@ class BazaRb
   def recent(name)
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
-    job = 0
+    job = nil
     elapsed(@loog) do
       ret =
         with_retries(max_tries: @retries, rescue: TimedOut) do
@@ -303,7 +306,7 @@ class BazaRb
   def name_exists?(name)
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
-    exists = 0
+    exists = false
     elapsed(@loog) do
       ret =
         with_retries(max_tries: @retries, rescue: TimedOut) do
@@ -496,13 +499,13 @@ class BazaRb
     success
   end
 
-  # Submit a ZIP archvie to finish a job.
+  # Submit a ZIP archive to finish a job.
   #
   # @param [Integer] id The ID of the job on the server
   # @param [String] zip The path to the ZIP file with the content of the archive
   def finish(id, zip)
-    raise 'The "id" of the job is nil' if id.nil?
-    raise 'The "id" of the job must be an integer' unless id.is_a?(Integer)
+    raise 'The ID of the job is nil' if id.nil?
+    raise 'The ID of the job must be a positive integer' unless id.positive?
     raise 'The "zip" of the job is nil' if zip.nil?
     raise "The 'zip' file is absent: #{zip}" unless File.exist?(zip)
     elapsed(@loog) do
