@@ -82,6 +82,13 @@ class TestBazaRb < Minitest::Test
     assert_equal(r, LIVE.enter(n, badge, 'no reason', nil) { nil })
   end
 
+  def test_get_csrf_token
+    WebMock.enable_net_connect!
+    skip unless we_are_online
+    n = fake_name
+    assert(LIVE.csrf.length > 10)
+  end
+
   def test_durable_place
     WebMock.disable_net_connect!
     stub_request(:post, 'https://example.org/durables/place').to_return(

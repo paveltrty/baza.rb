@@ -340,6 +340,7 @@ class BazaRb
             Typhoeus::Request.post(
               home.append('durables').append('place').to_s,
               body: {
+                '_csrf' => csrf,
                 'jname' => jname,
                 'file' => File.basename(file),
                 'zip' => File.open(file, 'rb')
@@ -547,15 +548,43 @@ class BazaRb
         return ret.body if ret.code == 200
         r = yield
         uri = home.append('valves').append('add')
-          .add(name:)
-          .add(badge:)
-          .add(why:)
-          .add(result: r.to_s)
         uri = uri.add(job:) unless job.nil?
-        checked(Typhoeus::Request.post(uri.to_s, headers:), 302)
+        checked(
+          Typhoeus::Request.post(
+            uri.to_s,
+            body: {
+              '_csrf' => csrf,
+              'name' => name,
+              'badge' => badge,
+              'why' => why
+              'result' => r.to_s
+            },
+            headers:
+          ),
+          302
+        )
         r
       end
     end
+  end
+
+  # Get CSRF token from the server.
+  # @return [String] The token for this user
+  def csrf
+    token = nil
+    elapsed(@loog) do
+      with_retries(max_tries: @retries, rescue: TimedOut) do
+        token = checked(
+          Typhoeus::Request.get(
+            home.append('csrf').to_s,
+            headers:
+          ),
+          200
+        ).body
+      end
+      throw :"CSRF token retrieved (#{token.length} chars)"
+    end
+    token
   end
 
   private
