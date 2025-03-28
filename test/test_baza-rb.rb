@@ -182,7 +182,7 @@ class TestBazaRb < Minitest::Test
   def test_simple_lock_failure
     WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org/lock/name?owner=owner').to_return(status: 409)
-    assert_raises do
+    assert_raises(StandardError) do
       BazaRb.new('example.org', 443, '000').lock('name', 'owner')
     end
   end
@@ -192,7 +192,7 @@ class TestBazaRb < Minitest::Test
     stub_request(:put, 'https://example.org/push/foo')
       .to_return(status: 503, body: 'oops', headers: { 'X-Zerocracy-Failure': 'the failure' })
       .to_raise('why second time?')
-    e = assert_raises { BazaRb.new('example.org', 443, '000').push('foo', 'data', []) }
+    e = assert_raises(StandardError) { BazaRb.new('example.org', 443, '000').push('foo', 'data', []) }
     [
       'Invalid response code #503',
       '"the failure"'
@@ -272,7 +272,7 @@ class TestBazaRb < Minitest::Test
           socket.close
         end
       assert_includes(
-        assert_raises do
+        assert_raises(StandardError) do
           BazaRb.new(host, port, '0000', ssl: false, timeout: 0.01).push('x', 'y', [])
         end.message, 'timed out in'
       )
