@@ -461,6 +461,38 @@ class BazaRb
     end
   end
 
+  # Transfer some funds to another user.
+  #
+  # @param [String] recipient GitHub name (e.g. "yegor256") of the recipient
+  # @param [Float] amount The amount in Z/USDT (not zents!)
+  # @param [String] summary The description of the payment
+  def transfer(recipient, amount, summary)
+    raise 'The "recipient" is nil' if recipient.nil?
+    raise 'The "amount" is nil' if amount.nil?
+    raise 'The "amount" must be Float' unless amount.is_a?(Float)
+    raise 'The "summary" is nil' if summary.nil?
+    elapsed(@loog) do
+      with_retries(max_tries: @retries, rescue: TimedOut) do
+        checked(
+          Typhoeus::Request.post(
+            home.append('account').append('transfer').to_s,
+            body: {
+              '_csrf' => csrf,
+              'human' => recipient,
+              'amount' => amount.to_s,
+              'summary' => summary
+            },
+            headers:,
+            connecttimeout: @timeout,
+            timeout: @timeout
+          ),
+          302
+        )
+      end
+      throw :"Transferred ##{amount} to @#{recipient} at #{@host}"
+    end
+  end
+
   # Pop job from the server.
   #
   # @param [String] owner Who is acting (could be any text)
@@ -556,7 +588,7 @@ class BazaRb
               '_csrf' => csrf,
               'name' => name,
               'badge' => badge,
-              'why' => why
+              'why' => why,
               'result' => r.to_s
             },
             headers:

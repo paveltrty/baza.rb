@@ -28,7 +28,7 @@ class TestBazaRb < Minitest::Test
 
   def test_live_push
     WebMock.enable_net_connect!
-    skip unless we_are_online
+    skip('We are offline') unless we_are_online
     fb = Factbase.new
     fb.insert.foo = 'test-' * 10_000
     fb.insert
@@ -49,7 +49,7 @@ class TestBazaRb < Minitest::Test
 
   def test_live_push_no_compression
     WebMock.enable_net_connect!
-    skip unless we_are_online
+    skip('We are offline') unless we_are_online
     fb = Factbase.new
     fb.insert.foo = 'test-' * 10_000
     fb.insert
@@ -59,7 +59,7 @@ class TestBazaRb < Minitest::Test
 
   def test_live_durable_lock_unlock
     WebMock.enable_net_connect!
-    skip unless we_are_online
+    skip('We are offline') unless we_are_online
     Dir.mktmpdir do |dir|
       file = File.join(dir, "#{fake_name}.bin")
       File.binwrite(file, 'hello')
@@ -74,7 +74,7 @@ class TestBazaRb < Minitest::Test
 
   def test_live_enter_valve
     WebMock.enable_net_connect!
-    skip unless we_are_online
+    skip('We are offline') unless we_are_online
     r = 'something'
     n = fake_name
     badge = fake_name
@@ -84,13 +84,20 @@ class TestBazaRb < Minitest::Test
 
   def test_get_csrf_token
     WebMock.enable_net_connect!
-    skip unless we_are_online
-    n = fake_name
+    skip('We are offline') unless we_are_online
     assert(LIVE.csrf.length > 10)
+  end
+
+  def test_transfer_payment
+    WebMock.disable_net_connect!
+    stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')
+    stub_request(:post, 'https://example.org/account/transfer').to_return(status: 302)
+    BazaRb.new('example.org', 443, '000').transfer('jeff', 42.50, 'for fun')
   end
 
   def test_durable_place
     WebMock.disable_net_connect!
+    stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')
     stub_request(:post, 'https://example.org/durables/place').to_return(
       status: 302, headers: { 'X-Zerocracy-DurableId' => '42' }
     )
@@ -208,6 +215,7 @@ class TestBazaRb < Minitest::Test
 
   def test_real_http
     WebMock.enable_net_connect!
+    skip('We are offline') unless we_are_online
     req =
       with_http_server(200, 'yes') do |baza|
         baza.name_exists?('simple')
@@ -217,6 +225,7 @@ class TestBazaRb < Minitest::Test
 
   def test_push_with_meta
     WebMock.enable_net_connect!
+    skip('We are offline') unless we_are_online
     req =
       with_http_server(200, 'yes') do |baza|
         baza.push('simple', 'hello, world!', ['boom!', 'хей!'])
@@ -226,6 +235,7 @@ class TestBazaRb < Minitest::Test
 
   def test_push_with_big_meta
     WebMock.enable_net_connect!
+    skip('We are offline') unless we_are_online
     req =
       with_http_server(200, 'yes') do |baza|
         baza.push(
@@ -243,6 +253,7 @@ class TestBazaRb < Minitest::Test
 
   def test_push_compressed_content
     WebMock.enable_net_connect!
+    skip('We are offline') unless we_are_online
     req =
       with_http_server(200, 'yes') do |baza|
         baza.push('simple', 'hello, world!', %w[meta1 meta2 meta3])
@@ -255,6 +266,7 @@ class TestBazaRb < Minitest::Test
 
   def test_push_compression_disabled
     WebMock.enable_net_connect!
+    skip('We are offline') unless we_are_online
     req =
       with_http_server(200, 'yes', compress: false) do |baza|
         baza.push('simple', 'hello, world!', %w[meta1 meta2 meta3])
@@ -265,6 +277,7 @@ class TestBazaRb < Minitest::Test
 
   def test_with_very_short_timeout
     WebMock.enable_net_connect!
+    skip('We are offline') unless we_are_online
     host = '127.0.0.1'
     RandomPort::Pool::SINGLETON.acquire do |port|
       server = TCPServer.new(host, port)
@@ -292,6 +305,7 @@ class TestBazaRb < Minitest::Test
   def with_http_server(code, response, opts = {})
     opts = { ssl: false, timeout: 1 }.merge(opts)
     WebMock.enable_net_connect!
+    skip('We are offline') unless we_are_online
     req = WEBrick::HTTPRequest.new(WEBrick::Config::HTTP)
     host = '127.0.0.1'
     RandomPort::Pool::SINGLETON.acquire do |port|
@@ -315,6 +329,6 @@ class TestBazaRb < Minitest::Test
   end
 
   def we_are_online
-    Net::Ping::External.new('8.8.8.8').ping?
+    @online ||= Net::Ping::External.new('8.8.8.8').ping?
   end
 end
