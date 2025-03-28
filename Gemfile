@@ -6,6 +6,7 @@
 source 'https://rubygems.org'
 gemspec
 
+gem 'base64', '>0', require: false
 gem 'factbase', '>0', require: false
 gem 'minitest', '~>5.25', require: false
 gem 'minitest-reporters', '~>1.7', require: false
