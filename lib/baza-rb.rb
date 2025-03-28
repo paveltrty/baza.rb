@@ -9,8 +9,11 @@ require 'fileutils'
 require 'iri'
 require 'loog'
 require 'retries'
+require 'stringio'
 require 'tago'
+require 'tempfile'
 require 'typhoeus'
+require 'zlib'
 require_relative 'baza-rb/version'
 
 # Interface to the API of zerocracy.com.
@@ -20,7 +23,7 @@ require_relative 'baza-rb/version'
 # results returned.
 #
 # Author:: Yegor Bugayenko (yegor256@gmail.com)
-# Copyright:: Copyright (c) 2024 Yegor Bugayenko
+# Copyright:: Copyright (c) 2024-2025 Yegor Bugayenko
 # License:: MIT
 class BazaRb
   # When the server failed (503).
@@ -70,7 +73,7 @@ class BazaRb
       'Content-Length' => data.size
     )
     unless meta.empty?
-      hdrs = hdrs.merge('X-Zerocracy-Meta' => meta.map { |v| Base64.encode64(v).gsub("\n", '') }.join(' '))
+      hdrs = hdrs.merge('X-Zerocracy-Meta' => meta.map { |v| Base64.encode64(v).delete("\n") }.join(' '))
     end
     params = {
       connecttimeout: @timeout,
@@ -101,7 +104,7 @@ class BazaRb
   def pull(id)
     raise 'The ID of the job is nil' if id.nil?
     raise 'The ID of the job must be a positive integer' unless id.positive?
-    data = 0
+    data = ''
     elapsed(@loog) do
       Tempfile.open do |file|
         File.open(file, 'wb') do |f|
@@ -209,7 +212,7 @@ class BazaRb
   def verified(id)
     raise 'The ID of the job is nil' if id.nil?
     raise 'The ID of the job must be a positive integer' unless id.positive?
-    verdict = 0
+    verdict = ''
     elapsed(@loog) do
       ret =
         with_retries(max_tries: @retries, rescue: TimedOut) do
@@ -279,7 +282,7 @@ class BazaRb
   def recent(name)
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
-    job = 0
+    job = nil
     elapsed(@loog) do
       ret =
         with_retries(max_tries: @retries, rescue: TimedOut) do
@@ -303,7 +306,7 @@ class BazaRb
   def name_exists?(name)
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
-    exists = 0
+    exists = false
     elapsed(@loog) do
       ret =
         with_retries(max_tries: @retries, rescue: TimedOut) do
@@ -337,6 +340,7 @@ class BazaRb
             Typhoeus::Request.post(
               home.append('durables').append('place').to_s,
               body: {
+                '_csrf' => csrf,
                 'jname' => jname,
                 'file' => File.basename(file),
                 'zip' => File.open(file, 'rb')
@@ -457,6 +461,38 @@ class BazaRb
     end
   end
 
+  # Transfer some funds to another user.
+  #
+  # @param [String] recipient GitHub name (e.g. "yegor256") of the recipient
+  # @param [Float] amount The amount in Z/USDT (not zents!)
+  # @param [String] summary The description of the payment
+  def transfer(recipient, amount, summary)
+    raise 'The "recipient" is nil' if recipient.nil?
+    raise 'The "amount" is nil' if amount.nil?
+    raise 'The "amount" must be Float' unless amount.is_a?(Float)
+    raise 'The "summary" is nil' if summary.nil?
+    elapsed(@loog) do
+      with_retries(max_tries: @retries, rescue: TimedOut) do
+        checked(
+          Typhoeus::Request.post(
+            home.append('account').append('transfer').to_s,
+            body: {
+              '_csrf' => csrf,
+              'human' => recipient,
+              'amount' => amount.to_s,
+              'summary' => summary
+            },
+            headers:,
+            connecttimeout: @timeout,
+            timeout: @timeout
+          ),
+          302
+        )
+      end
+      throw :"Transferred ##{amount} to @#{recipient} at #{@host}"
+    end
+  end
+
   # Pop job from the server.
   #
   # @param [String] owner Who is acting (could be any text)
@@ -496,13 +532,13 @@ class BazaRb
     success
   end
 
-  # Submit a ZIP archvie to finish a job.
+  # Submit a ZIP archive to finish a job.
   #
   # @param [Integer] id The ID of the job on the server
   # @param [String] zip The path to the ZIP file with the content of the archive
   def finish(id, zip)
-    raise 'The "id" of the job is nil' if id.nil?
-    raise 'The "id" of the job must be an integer' unless id.is_a?(Integer)
+    raise 'The ID of the job is nil' if id.nil?
+    raise 'The ID of the job must be a positive integer' unless id.positive?
     raise 'The "zip" of the job is nil' if zip.nil?
     raise "The 'zip' file is absent: #{zip}" unless File.exist?(zip)
     elapsed(@loog) do
@@ -544,15 +580,43 @@ class BazaRb
         return ret.body if ret.code == 200
         r = yield
         uri = home.append('valves').append('add')
-          .add(name:)
-          .add(badge:)
-          .add(why:)
-          .add(result: r.to_s)
         uri = uri.add(job:) unless job.nil?
-        checked(Typhoeus::Request.post(uri.to_s, headers:), 302)
+        checked(
+          Typhoeus::Request.post(
+            uri.to_s,
+            body: {
+              '_csrf' => csrf,
+              'name' => name,
+              'badge' => badge,
+              'why' => why,
+              'result' => r.to_s
+            },
+            headers:
+          ),
+          302
+        )
         r
       end
     end
+  end
+
+  # Get CSRF token from the server.
+  # @return [String] The token for this user
+  def csrf
+    token = nil
+    elapsed(@loog) do
+      with_retries(max_tries: @retries, rescue: TimedOut) do
+        token = checked(
+          Typhoeus::Request.get(
+            home.append('csrf').to_s,
+            headers:
+          ),
+          200
+        ).body
+      end
+      throw :"CSRF token retrieved (#{token.length} chars)"
+    end
+    token
   end
 
   private
@@ -580,7 +644,7 @@ class BazaRb
   end
 
   def gzip(data)
-    ''.dup.tap do |result|
+    (+'').tap do |result|
       io = StringIO.new(result)
       gz = Zlib::GzipWriter.new(io)
       gz.write(data)

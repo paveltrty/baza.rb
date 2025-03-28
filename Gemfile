@@ -12,12 +12,10 @@ gem 'minitest-reporters', '~>1.7', require: false
 gem 'net-ping', '~>2.0', require: false
 gem 'rake', '~>13.2', require: false
 gem 'random-port', '>0', require: false
-gem 'rspec-rails', '~>7.1', require: false
-gem 'rubocop', '~>1.69', require: false
+gem 'rubocop', '~>1.73', require: false
 gem 'rubocop-minitest', '>0', require: false
 gem 'rubocop-performance', '~>1.23', require: false
 gem 'rubocop-rake', '>0', require: false
-gem 'rubocop-rspec', '~>3.3', require: false
 gem 'simplecov', '~>0.22', require: false
 gem 'simplecov-cobertura', '~>2.1', require: false
 gem 'wait_for', '~>0', require: false

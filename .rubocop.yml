@@ -10,6 +10,12 @@ AllCops:
   TargetRubyVersion: 3.2
   SuggestExtensions: false
   NewCops: enable
+plugins:
+  - rubocop-rake
+  - rubocop-minitest
+  - rubocop-performance
+Minitest/EmptyLineBeforeAssertionMethods:
+  Enabled: false
 Style/GlobalVars:
   Enabled: false
 Lint/NestedMethodDefinition:
@@ -46,6 +52,3 @@ Layout/MultilineAssignmentLayout:
   Enabled: true
 Naming/FileName:
   Enabled: false
-require:
-  - rubocop-rake
-  - rubocop-minitest
