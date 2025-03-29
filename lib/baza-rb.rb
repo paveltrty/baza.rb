@@ -471,26 +471,30 @@ class BazaRb
     raise 'The "amount" is nil' if amount.nil?
     raise 'The "amount" must be Float' unless amount.is_a?(Float)
     raise 'The "summary" is nil' if summary.nil?
+    id = nil
     elapsed(@loog) do
-      with_retries(max_tries: @retries, rescue: TimedOut) do
-        checked(
-          Typhoeus::Request.post(
-            home.append('account').append('transfer').to_s,
-            body: {
-              '_csrf' => csrf,
-              'human' => recipient,
-              'amount' => amount.to_s,
-              'summary' => summary
-            },
-            headers:,
-            connecttimeout: @timeout,
-            timeout: @timeout
-          ),
-          302
-        )
-      end
+      ret =
+        with_retries(max_tries: @retries, rescue: TimedOut) do
+          checked(
+            Typhoeus::Request.post(
+              home.append('account').append('transfer').to_s,
+              body: {
+                '_csrf' => csrf,
+                'human' => recipient,
+                'amount' => amount.to_s,
+                'summary' => summary
+              },
+              headers:,
+              connecttimeout: @timeout,
+              timeout: @timeout
+            ),
+            302
+          )
+        end
+      id = ret.headers['X-Zerocracy-ReceiptId'].to_i
       throw :"Transferred ##{amount} to @#{recipient} at #{@host}"
     end
+    id
   end
 
   # Pop job from the server.
