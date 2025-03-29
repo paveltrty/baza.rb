@@ -466,6 +466,7 @@ class BazaRb
   # @param [String] recipient GitHub name (e.g. "yegor256") of the recipient
   # @param [Float] amount The amount in Z/USDT (not zents!)
   # @param [String] summary The description of the payment
+  # @return [Integer] Receipt ID
   def transfer(recipient, amount, summary)
     raise 'The "recipient" is nil' if recipient.nil?
     raise 'The "amount" is nil' if amount.nil?
