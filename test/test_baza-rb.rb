@@ -105,6 +105,16 @@ class TestBazaRb < Minitest::Test
     assert_equal(42, id)
   end
 
+  def test_transfer_payment_with_job
+    WebMock.disable_net_connect!
+    stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')
+    stub_request(:post, 'https://example.org/account/transfer').to_return(
+      status: 302, headers: { 'X-Zerocracy-ReceiptId' => '42' }
+    )
+    id = BazaRb.new('example.org', 443, '000').transfer('jeff', 42.50, 'for fun', job: 555)
+    assert_equal(42, id)
+  end
+
   def test_durable_place
     WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')

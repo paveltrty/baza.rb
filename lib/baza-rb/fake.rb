@@ -143,7 +143,7 @@ class BazaRb::Fake
   # @param [String] recipient GitHub name (e.g. "yegor256") of the recipient
   # @param [Float] amount The amount in Z/USDT (not zents!)
   # @param [String] summary The description of the payment
-  def transfer(_recipient, _amount, _summary)
+  def transfer(_recipient, _amount, _summary, *)
     42
   end
 
