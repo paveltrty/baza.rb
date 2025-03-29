@@ -9,6 +9,7 @@
 [![Yard Docs](http://img.shields.io/badge/yard-docs-blue.svg)](http://rubydoc.info/github/zerocracy/baza.rb/master/frames)
 [![Hits-of-Code](https://hitsofcode.com/github/zerocracy/baza.rb)](https://hitsofcode.com/view/github/zerocracy/baza.rb)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/zerocracy/baza.rb/blob/master/LICENSE.txt)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fzerocracy%2Fbaza.rb.svg?type=shield&issueType=license)](https://app.fossa.com/projects/git%2Bgithub.com%2Fzerocracy%2Fbaza.rb?ref=badge_shield&issueType=license)
 
 It's an client for [Zerocracy API](https://www.zerocracy.com), in Ruby.
 
