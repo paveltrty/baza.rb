@@ -15,4 +15,91 @@ class TestFake < Minitest::Test
     bin = baza.pull(42)
     refute_nil(bin)
   end
+
+  def test_push
+    baza = BazaRb::Fake.new
+    id = baza.push('test-job', 'test-data', [])
+    assert_equal(42, id)
+  end
+
+  def test_finished
+    baza = BazaRb::Fake.new
+    assert(baza.finished?(42))
+  end
+
+  def test_stdout
+    baza = BazaRb::Fake.new
+    output = baza.stdout(42)
+    assert_equal('Fake stdout output', output)
+  end
+
+  def test_exit_code
+    baza = BazaRb::Fake.new
+    code = baza.exit_code(42)
+    assert_equal(0, code)
+  end
+
+  def test_verified
+    baza = BazaRb::Fake.new
+    verdict = baza.verified(42)
+    assert_equal('fake-verdict', verdict)
+  end
+
+  def test_lock_unlock
+    baza = BazaRb::Fake.new
+    baza.lock('test-job', 'test-owner')
+    baza.unlock('test-job', 'test-owner')
+  end
+
+  def test_recent
+    baza = BazaRb::Fake.new
+    id = baza.recent('test-job')
+    assert_equal(42, id)
+  end
+
+  def test_name_exists
+    baza = BazaRb::Fake.new
+    assert(baza.name_exists?('test-job'))
+  end
+
+  def test_durable_operations
+    baza = BazaRb::Fake.new
+    baza.durable_place('test-job', 'test-file')
+    baza.durable_save(42, 'test-file')
+    baza.durable_load(42, 'test-file')
+    baza.durable_lock(42, 'test-owner')
+    baza.durable_unlock(42, 'test-owner')
+  end
+
+  def test_transfer
+    baza = BazaRb::Fake.new
+    receipt_id = baza.transfer('recipient', 1.0, 'test-payment')
+    assert_equal(42, receipt_id)
+  end
+
+  def test_pop
+    baza = BazaRb::Fake.new
+    result = baza.pop('test-owner', 'test.zip')
+    assert(result)
+  end
+
+  def test_finish
+    baza = BazaRb::Fake.new
+    baza.finish(42, 'test.zip')
+  end
+
+  def test_enter
+    baza = BazaRb::Fake.new
+    result =
+      baza.enter('test-job', 'test-badge', 'test-reason', 42) do
+        'test-result'
+      end
+    assert_equal('test-result', result)
+  end
+
+  def test_csrf
+    baza = BazaRb::Fake.new
+    token = baza.csrf
+    assert_equal('fake-csrf-token', token)
+  end
 end
