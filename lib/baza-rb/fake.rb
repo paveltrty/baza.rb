@@ -134,6 +134,7 @@ class BazaRb::Fake
   # @param [String] file The file to upload
   def durable_load(id, file)
     assert_id(id)
+    assert_file(file)
   end
 
   # Lock a single durable.
