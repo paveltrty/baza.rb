@@ -14,4 +14,5 @@ SimpleCov.start
 require 'simplecov-cobertura'
 SimpleCov.formatter = SimpleCov::Formatter::CoberturaFormatter
 
+require 'webmock/minitest'
 require 'minitest/autorun'

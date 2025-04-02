@@ -19,7 +19,7 @@ Gem::Specification.new do |s|
     'and do everything else that is possible to do via the HTTP API.'
   s.authors = ['Yegor Bugayenko']
   s.email = 'yegor256@gmail.com'
-  s.homepage = 'http://github.com/zerocracy/baza.rb'
+  s.homepage = 'https://github.com/zerocracy/baza.rb'
   s.files = `git ls-files`.split($RS)
   s.rdoc_options = ['--charset=UTF-8']
   s.extra_rdoc_files = ['README.md', 'LICENSE.txt']

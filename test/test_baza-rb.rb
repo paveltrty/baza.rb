@@ -5,15 +5,14 @@
 
 require 'factbase'
 require 'loog'
-require 'minitest/autorun'
 require 'net/ping'
 require 'random-port'
 require 'securerandom'
 require 'socket'
 require 'stringio'
 require 'wait_for'
-require 'webmock/minitest'
 require 'webrick'
+require_relative 'test__helper'
 require_relative '../lib/baza-rb'
 
 # Test.

@@ -3,6 +3,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2024-2025 Zerocracy
 # SPDX-License-Identifier: MIT
 
+require_relative 'test__helper'
 require_relative '../lib/baza-rb/fake'
 
 # Test fake object.
@@ -64,11 +65,15 @@ class TestFake < Minitest::Test
 
   def test_durable_operations
     baza = BazaRb::Fake.new
-    baza.durable_place('test-job', 'test-file')
-    baza.durable_save(42, 'test-file')
-    baza.durable_load(42, 'test-file')
-    baza.durable_lock(42, 'test-owner')
-    baza.durable_unlock(42, 'test-owner')
+    Dir.mktmpdir do |tmp|
+      f = File.join(tmp, 'test.bin')
+      File.write(f, 'hello')
+      baza.durable_place('test-job', f)
+      baza.durable_save(42, f)
+      baza.durable_load(42, f)
+      baza.durable_lock(42, 'test-owner')
+      baza.durable_unlock(42, 'test-owner')
+    end
   end
 
   def test_transfer
@@ -79,13 +84,20 @@ class TestFake < Minitest::Test
 
   def test_pop
     baza = BazaRb::Fake.new
-    result = baza.pop('test-owner', 'test.zip')
-    assert(result)
+    Dir.mktmpdir do |tmp|
+      f = File.join(tmp, 'test.zip')
+      result = baza.pop('test-owner', f)
+      assert(result)
+    end
   end
 
   def test_finish
     baza = BazaRb::Fake.new
-    baza.finish(42, 'test.zip')
+    Dir.mktmpdir do |tmp|
+      f = File.join(tmp, 'test.zip')
+      File.write(f, 'hello')
+      baza.finish(42, f)
+    end
   end
 
   def test_enter
