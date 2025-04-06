@@ -467,8 +467,9 @@ class BazaRb
   # @param [Float] amount The amount in Z/USDT (not zents!)
   # @param [String] summary The description of the payment
   # @param [Integer] job The ID of the job or NIL
+  # @param [Integer] job The amount of points just rewarded
   # @return [Integer] Receipt ID
-  def transfer(recipient, amount, summary, job: nil)
+  def transfer(recipient, amount, summary, job: nil, points: nil)
     raise 'The "recipient" is nil' if recipient.nil?
     raise 'The "amount" is nil' if amount.nil?
     raise 'The "amount" must be Float' unless amount.is_a?(Float)
@@ -480,7 +481,11 @@ class BazaRb
       'amount' => amount.to_s,
       'summary' => summary
     }
-    body['job'] = job unless job.nil?
+    unless job.nil?
+      body['job'] = job
+      raise 'The "points" must be Integer' unless points.is_a?(Integer)
+      body['points'] = points.to_s
+    end
     elapsed(@loog) do
       ret =
         with_retries(max_tries: @retries, rescue: TimedOut) do
