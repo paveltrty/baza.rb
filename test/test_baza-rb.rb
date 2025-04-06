@@ -110,7 +110,7 @@ class TestBazaRb < Minitest::Test
     stub_request(:post, 'https://example.org/account/transfer').to_return(
       status: 302, headers: { 'X-Zerocracy-ReceiptId' => '42' }
     )
-    id = BazaRb.new('example.org', 443, '000').transfer('jeff', 42.50, 'for fun', job: 555, points: 88)
+    id = BazaRb.new('example.org', 443, '000').transfer('jeff', 42.50, 'for fun', job: 555)
     assert_equal(42, id)
   end
 
