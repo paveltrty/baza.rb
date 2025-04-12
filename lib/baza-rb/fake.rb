@@ -16,6 +16,13 @@ require_relative 'version'
 # Copyright:: Copyright (c) 2024-2025 Yegor Bugayenko
 # License:: MIT
 class BazaRb::Fake
+  # Get GitHub login name of the logged in user.
+  #
+  # @return [String] GitHub nickname
+  def whoami
+    'torvalds'
+  end
+
   # Push factbase to the server.
   #
   # @param [String] name The name of the job on the server
@@ -161,10 +168,27 @@ class BazaRb::Fake
   # @param [Float] amount The amount in Z/USDT (not zents!)
   # @param [String] summary The description of the payment
   def transfer(recipient, amount, summary, *)
-    raise "The receipient #{recipient.inspect} is not valid" unless recipient.match?(/^[a-zA-Z0-9-]+$/)
+    raise "The recipient #{recipient.inspect} is not valid" unless recipient.match?(/^[a-zA-Z0-9-]+$/)
     raise "The amount #{amount} must be a Float" unless amount.is_a?(Float)
     raise "The amount #{amount} must be positive" unless amount.positive?
     raise "The summary #{summary.inspect} is empty" if summary.empty?
+    42
+  end
+
+  # Pay fee, while working with a job.
+  #
+  # @param [String] tab The tab of the fee (use "unknown" if not sure)
+  # @param [Float] amount The amount in Z/USDT (not zents!)
+  # @param [String] summary The description of the payment
+  # @param [Integer] job The ID of the job
+  # @return [Integer] Receipt ID
+  def fee(tab, amount, summary, job)
+    raise 'The "tab" is nil' if tab.nil?
+    raise "The amount #{amount} must be a Float" unless amount.is_a?(Float)
+    raise "The amount #{amount} must be positive" unless amount.positive?
+    raise 'The "job" is nil' if job.nil?
+    raise 'The "job" must be Integer' unless job.is_a?(Integer)
+    raise 'The "summary" is nil' if summary.nil?
     42
   end
 

@@ -11,6 +11,12 @@ require_relative '../lib/baza-rb/fake'
 # Copyright:: Copyright (c) 2024 Yegor Bugayenko
 # License:: MIT
 class TestFake < Minitest::Test
+  def test_whoami
+    baza = BazaRb::Fake.new
+    nick = baza.whoami
+    refute_nil(nick)
+  end
+
   def test_pull
     baza = BazaRb::Fake.new
     bin = baza.pull(42)
@@ -79,6 +85,12 @@ class TestFake < Minitest::Test
   def test_transfer
     baza = BazaRb::Fake.new
     receipt_id = baza.transfer('recipient', 1.0, 'test-payment')
+    assert_equal(42, receipt_id)
+  end
+
+  def test_pays_fee
+    baza = BazaRb::Fake.new
+    receipt_id = baza.fee('unknown', 43.0, 'for fun', 44)
     assert_equal(42, receipt_id)
   end
 

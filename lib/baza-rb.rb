@@ -56,6 +56,27 @@ class BazaRb
     @compress = compress
   end
 
+  # Get GitHub login name of the logged in user.
+  #
+  # @return [String] GitHub nickname
+  def whoami
+    nic = nil
+    elapsed(@loog) do
+      ret =
+        with_retries(max_tries: @retries, rescue: TimedOut) do
+          checked(
+            Typhoeus::Request.get(
+              home.append('whoami').to_s,
+              headers:
+            )
+          )
+        end
+      nick = ret.body
+      throw :"I know that I am @s#{nick}, at #{@host}"
+    end
+    nick
+  end
+
   # Push factbase to the server.
   #
   # @param [String] name The name of the job on the server
@@ -477,7 +498,7 @@ class BazaRb
     body = {
       '_csrf' => csrf,
       'human' => recipient,
-      'amount' => amount.to_s,
+      'amount' => format('%0.6f', amount),
       'summary' => summary
     }
     body['job'] = job unless job.nil?
@@ -497,6 +518,48 @@ class BazaRb
         end
       id = ret.headers['X-Zerocracy-ReceiptId'].to_i
       throw :"Transferred ##{amount} to @#{recipient} at #{@host}"
+    end
+    id
+  end
+
+  # Pay fee, while working with a job.
+  #
+  # @param [String] tab The tab of the fee (use "unknown" if not sure)
+  # @param [Float] amount The amount in Z/USDT (not zents!)
+  # @param [String] summary The description of the payment
+  # @param [Integer] job The ID of the job
+  # @return [Integer] Receipt ID
+  def fee(tab, amount, summary, job)
+    raise 'The "tab" is nil' if tab.nil?
+    raise 'The "amount" is nil' if amount.nil?
+    raise 'The "amount" must be Float' unless amount.is_a?(Float)
+    raise 'The "job" is nil' if job.nil?
+    raise 'The "job" must be Integer' unless job.is_a?(Integer)
+    raise 'The "summary" is nil' if summary.nil?
+    id = nil
+    body = {
+      '_csrf' => csrf,
+      'tab' => tab,
+      'amount' => format('%0.6f', amount),
+      'summary' => summary,
+      'job' => job.to_s
+    }
+    elapsed(@loog) do
+      ret =
+        with_retries(max_tries: @retries, rescue: TimedOut) do
+          checked(
+            Typhoeus::Request.put(
+              home.append('account').append('fee').to_s,
+              body: '',
+              headers:,
+              connecttimeout: @timeout,
+              timeout: @timeout
+            ),
+            302
+          )
+        end
+      id = ret.headers['X-Zerocracy-ReceiptId'].to_i
+      throw :"Fee ##{zents} paid at #{@host}"
     end
     id
   end
