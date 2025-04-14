@@ -17,6 +17,12 @@ class TestFake < Minitest::Test
     refute_nil(nick)
   end
 
+  def test_balance
+    baza = BazaRb::Fake.new
+    z = baza.balance
+    refute_nil(z)
+  end
+
   def test_pull
     baza = BazaRb::Fake.new
     bin = baza.pull(42)

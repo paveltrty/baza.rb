@@ -162,6 +162,13 @@ class BazaRb::Fake
     assert_owner(owner)
   end
 
+  # Get current balance, in Ƶ.
+  #
+  # @return [Float] The balance, as float
+  def balance
+    3.14
+  end
+
   # Transfer some funds to another user.
   #
   # @param [String] recipient GitHub name (e.g. "yegor256") of the recipient

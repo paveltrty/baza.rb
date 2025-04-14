@@ -60,7 +60,7 @@ class BazaRb
   #
   # @return [String] GitHub nickname
   def whoami
-    nic = nil
+    nick = nil
     elapsed(@loog) do
       ret =
         with_retries(max_tries: @retries, rescue: TimedOut) do
@@ -72,9 +72,30 @@ class BazaRb
           )
         end
       nick = ret.body
-      throw :"I know that I am @s#{nick}, at #{@host}"
+      throw :"I know that I am @#{nick}, at #{@host}"
     end
     nick
+  end
+
+  # Get current balance, in Ƶ.
+  #
+  # @return [Float] The balance, as float
+  def balance
+    z = nil
+    elapsed(@loog) do
+      ret =
+        with_retries(max_tries: @retries, rescue: TimedOut) do
+          checked(
+            Typhoeus::Request.get(
+              home.append('account').append('balance').to_s,
+              headers:
+            )
+          )
+        end
+      z = ret.body.to_f
+      throw :"The balance is Ƶ#{z}, at #{@host}"
+    end
+    z
   end
 
   # Push factbase to the server.
@@ -548,9 +569,9 @@ class BazaRb
       ret =
         with_retries(max_tries: @retries, rescue: TimedOut) do
           checked(
-            Typhoeus::Request.put(
+            Typhoeus::Request.post(
               home.append('account').append('fee').to_s,
-              body: '',
+              body:,
               headers:,
               connecttimeout: @timeout,
               timeout: @timeout
@@ -559,7 +580,7 @@ class BazaRb
           )
         end
       id = ret.headers['X-Zerocracy-ReceiptId'].to_i
-      throw :"Fee ##{zents} paid at #{@host}"
+      throw :"Fee ##{format('%.02f', amount)} paid at #{@host}"
     end
     id
   end

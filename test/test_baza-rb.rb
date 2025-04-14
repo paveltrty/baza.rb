@@ -59,10 +59,18 @@ class TestBazaRb < Minitest::Test
     refute_nil(LIVE.whoami)
   end
 
+  def test_live_balance
+    WebMock.enable_net_connect!
+    skip('We are offline') unless we_are_online
+    z = LIVE.balance
+    refute_nil(z)
+    assert(z.to_f)
+  end
+
   def test_live_fee_payment
     WebMock.enable_net_connect!
     skip('We are offline') unless we_are_online
-    refute_nil(LIVE.fee('unknown', 42.77, 'just for fun', 777))
+    refute_nil(LIVE.fee('unknown', 0.007, 'just for fun', 777))
   end
 
   def test_live_push_no_compression
