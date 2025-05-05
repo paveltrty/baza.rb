@@ -52,3 +52,4 @@ Layout/MultilineAssignmentLayout:
   Enabled: true
 Naming/FileName:
   Enabled: false
+require: []
