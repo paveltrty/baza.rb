@@ -184,13 +184,17 @@ class TestBazaRb < Minitest::Test
         .with(headers: { 'Range' => 'bytes=0-' })
         .to_return(
           status: 206,
-          headers: { 'Content-Range' => "bytes 0-7/#{bin.size}", 'X-Zerocracy-JobId' => '42' },
+          headers: { 'Content-Range' => "bytes 0-7/#{bin.size}", 'X-Zerocracy-JobId' => job },
           body: bin[0..7]
         )
       stub_request(:get, 'https://example.org/pop')
         .with(query: { job:, owner: })
         .with(headers: { 'Range' => 'bytes=8-' })
-        .to_return(status: 206, headers: { 'Content-Range' => "bytes 8-#{bin.size - 1}/#{bin.size}" }, body: bin[8..])
+        .to_return(
+          status: 206,
+          headers: { 'Content-Range' => "bytes 8-#{bin.size - 1}/#{bin.size}", 'X-Zerocracy-JobId' => job },
+          body: bin[8..]
+        )
     end
     Tempfile.open do |zip|
       assert(fake_baza.pop(owner, zip.path))
