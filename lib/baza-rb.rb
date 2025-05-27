@@ -669,7 +669,7 @@ class BazaRb
   end
 
   # Enter a valve to cache or retrieve a computation result.
-  # 
+  #
   # Valves prevent duplicate computations by caching results. If a result
   # for the given badge already exists, it's returned. Otherwise, the block
   # is executed and its result is cached.
@@ -715,7 +715,7 @@ class BazaRb
   end
 
   # Get CSRF token from the server for authenticated requests.
-  # 
+  #
   # The CSRF token is required for POST requests to prevent cross-site
   # request forgery attacks.
   #
