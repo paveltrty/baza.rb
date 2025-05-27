@@ -7,10 +7,16 @@ require 'factbase'
 require_relative '../baza-rb'
 require_relative 'version'
 
-# Fake interface to the API of zerocracy.com for testing.
+# Fake implementation of the Zerocracy API client for testing.
 #
 # This class implements the same public interface as BazaRb but doesn't
-# make any network connections, instead returning predefined fake values.
+# make any network connections. Instead, it returns predefined fake values
+# and validates inputs to help catch errors during testing.
+#
+# @example Using in tests
+#   baza = BazaRb::Fake.new
+#   assert_equal 'torvalds', baza.whoami
+#   assert_equal 42, baza.push('test-job', 'data', [])
 #
 # Author:: Yegor Bugayenko (yegor256@gmail.com)
 # Copyright:: Copyright (c) 2024-2025 Yegor Bugayenko
@@ -18,17 +24,17 @@ require_relative 'version'
 class BazaRb::Fake
   # Get GitHub login name of the logged in user.
   #
-  # @return [String] GitHub nickname
+  # @return [String] Always returns 'torvalds' for testing
   def whoami
     'torvalds'
   end
 
   # Push factbase to the server.
   #
-  # @param [String] name The name of the job on the server
-  # @param [Bytes] data The data to push to the server (binary)
-  # @param [Array<String>] meta List of metas, possibly empty
-  # @return [Integer] Job ID on the server
+  # @param [String] name The unique name of the job on the server
+  # @param [String] data The binary data to push to the server
+  # @param [Array<String>] meta List of metadata strings to attach to the job
+  # @return [Integer] Always returns 42 as the fake job ID
   def push(name, data, meta)
     assert_name(name)
     raise 'The data must be non-empty' if data.empty?
@@ -39,16 +45,16 @@ class BazaRb::Fake
   # Pull factbase from the server.
   #
   # @param [Integer] id The ID of the job on the server
-  # @return [Bytes] Binary data pulled
+  # @return [String] Returns an empty factbase export for testing
   def pull(id)
     assert_id(id)
     Factbase.new.export
   end
 
-  # The job with this ID is finished already?
+  # Check if the job with this ID is finished already.
   #
   # @param [Integer] id The ID of the job on the server
-  # @return [Boolean] TRUE if the job is already finished
+  # @return [Boolean] Always returns TRUE for testing
   def finished?(id)
     assert_id(id)
     true
@@ -117,13 +123,15 @@ class BazaRb::Fake
     true
   end
 
-  # Place a single durable.
+  # Place a single durable file on the server.
   #
   # @param [String] jname The name of the job on the server
-  # @param [String] file The file name
+  # @param [String] file The path to the file to upload
+  # @return [Integer] Always returns 42 as the fake durable ID
   def durable_place(jname, file)
     assert_name(jname)
     assert_file(file)
+    42
   end
 
   # Save a single durable from local file to server.
@@ -162,18 +170,19 @@ class BazaRb::Fake
     assert_owner(owner)
   end
 
-  # Get current balance, in Ƶ.
+  # Get current balance of the authenticated user.
   #
-  # @return [Float] The balance, as float
+  # @return [Float] Always returns 3.14 zents for testing
   def balance
     3.14
   end
 
-  # Transfer some funds to another user.
+  # Transfer funds to another user.
   #
-  # @param [String] recipient GitHub name (e.g. "yegor256") of the recipient
-  # @param [Float] amount The amount in Z/USDT (not zents!)
-  # @param [String] summary The description of the payment
+  # @param [String] recipient GitHub username of the recipient
+  # @param [Float] amount The amount to transfer in ƶ (zents)
+  # @param [String] summary The description/reason for the payment
+  # @return [Integer] Always returns 42 as the fake receipt ID
   def transfer(recipient, amount, summary, *)
     raise "The recipient #{recipient.inspect} is not valid" unless recipient.match?(/^[a-zA-Z0-9-]+$/)
     raise "The amount #{amount} must be a Float" unless amount.is_a?(Float)
@@ -182,13 +191,13 @@ class BazaRb::Fake
     42
   end
 
-  # Pay fee, while working with a job.
+  # Pay a fee associated with a job.
   #
-  # @param [String] tab The tab of the fee (use "unknown" if not sure)
-  # @param [Float] amount The amount in Z/USDT (not zents!)
-  # @param [String] summary The description of the payment
-  # @param [Integer] job The ID of the job
-  # @return [Integer] Receipt ID
+  # @param [String] tab The category/type of the fee
+  # @param [Float] amount The fee amount in ƶ (zents)
+  # @param [String] summary The description/reason for the fee
+  # @param [Integer] job The ID of the job this fee is for
+  # @return [Integer] Always returns 42 as the fake receipt ID
   def fee(tab, amount, summary, job)
     raise 'The "tab" is nil' if tab.nil?
     raise "The amount #{amount} must be a Float" unless amount.is_a?(Float)
@@ -199,11 +208,11 @@ class BazaRb::Fake
     42
   end
 
-  # Pop job from the server.
+  # Pop the next available job from the server's queue.
   #
-  # @param [String] owner Who is acting (could be any text)
-  # @param [String] zip The path to ZIP archive to take
-  # @return [Boolean] TRUE if job taken, otherwise false
+  # @param [String] owner Identifier of who is taking the job
+  # @param [String] zip The local file path where the job's ZIP will be saved
+  # @return [Boolean] Always returns TRUE and creates an empty file
   def pop(owner, zip)
     assert_owner(owner)
     FileUtils.mkdir_p(File.dirname(zip))
@@ -211,22 +220,23 @@ class BazaRb::Fake
     true
   end
 
-  # Submit a ZIP archive to finish a job.
+  # Submit a ZIP archive to finish a previously popped job.
   #
-  # @param [Integer] id The ID of the job on the server
-  # @param [String] zip The path to the ZIP file with the content of the archive
+  # @param [Integer] id The ID of the job to finish
+  # @param [String] zip The path to the ZIP file containing job results
   def finish(id, zip)
     assert_id(id)
     assert_file(zip)
   end
 
-  # Enter a valve.
+  # Enter a valve to cache or retrieve a computation result.
   #
   # @param [String] name Name of the job
-  # @param [String] badge Unique badge of the valve
-  # @param [String] why The reason
-  # @param [nil|Integer] job The ID of the job
-  # @return [String] The result just calculated or retrieved
+  # @param [String] badge Unique identifier for this valve
+  # @param [String] why The reason/description for entering this valve
+  # @param [nil|Integer] job Optional job ID to associate with this valve
+  # @yield Block that computes the result
+  # @return [String] Always executes and returns the block's result
   def enter(name, badge, why, job)
     assert_name(name)
     raise "The badge '#{badge}' is not valid" unless badge.match?(/^[a-zA-Z0-9_-]+$/)
@@ -235,8 +245,9 @@ class BazaRb::Fake
     yield
   end
 
-  # Get CSRF token from the server.
-  # @return [String] The token for this user
+  # Get CSRF token from the server for authenticated requests.
+  #
+  # @return [String] Always returns 'fake-csrf-token' for testing
   def csrf
     'fake-csrf-token'
   end

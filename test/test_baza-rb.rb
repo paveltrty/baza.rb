@@ -5,11 +5,12 @@
 
 require 'factbase'
 require 'loog'
-require 'net/ping'
+require 'net/http'
 require 'random-port'
 require 'securerandom'
 require 'socket'
 require 'stringio'
+require 'uri'
 require 'wait_for'
 require 'webrick'
 require_relative 'test__helper'
@@ -17,7 +18,7 @@ require_relative '../lib/baza-rb'
 
 # Test.
 # Author:: Yegor Bugayenko (yegor256@gmail.com)
-# Copyright:: Copyright (c) 2024 Yegor Bugayenko
+# Copyright:: Copyright (c) 2024-2025 Yegor Bugayenko
 # License:: MIT
 class TestBazaRb < Minitest::Test
   # The token to use for testing:
@@ -367,7 +368,21 @@ class TestBazaRb < Minitest::Test
     "fake#{SecureRandom.hex(8)}"
   end
 
+  # rubocop:disable Style/GlobalVars
   def we_are_online
-    @we_are_online ||= Net::Ping::External.new('8.8.8.8').ping?
+    $we_are_online ||= !ARGV.include?('--offline') && uri_is_alive('https://www.zerocracy.com')
+  end
+  # rubocop:enable Style/GlobalVars
+
+  # Checks whether this URI is alive (HTTP status is 200).
+  def uri_is_alive(uri)
+    Timeout.timeout(4) do
+      require 'net/http'
+      WebMock.enable_net_connect!
+      Net::HTTP.get_response(URI(uri)).is_a?(Net::HTTPSuccess)
+    rescue Timeout::Error, Timeout::ExitException, Socket::ResolutionError, Errno::EHOSTUNREACH, Errno::EINVAL
+      puts "Ping failed to #{uri}"
+      false
+    end
   end
 end

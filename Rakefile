@@ -24,12 +24,13 @@ task default: %i[clean test picks rubocop yard]
 
 require 'rake/testtask'
 desc 'Run all unit tests'
-Rake::TestTask.new(:test) do |test|
+Rake::TestTask.new(:test) do |t|
   Rake::Cleaner.cleanup_files(['coverage'])
-  test.libs << 'lib' << 'test'
-  test.pattern = 'test/**/test_*.rb'
-  test.warning = true
-  test.verbose = false
+  t.libs << 'lib' << 'test'
+  t.pattern = 'test/**/test_*.rb'
+  t.warning = true
+  t.verbose = false
+  t.options = ARGV.join(' ').match(/(?:^| )(-- .*)$/)
 end
 
 desc 'Run them via Ruby, one by one'
