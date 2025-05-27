@@ -37,7 +37,10 @@ desc 'Run them via Ruby, one by one'
 task :picks do
   next if OS.windows?
   (Dir['test/**/*.rb'] + Dir['lib/**/*.rb']).each do |f|
-    qbash("bundle exec ruby #{Shellwords.escape(f)}", log: $stdout, env: { 'RACK_ENV' => 'picks' })
+    qbash(
+      "bundle exec ruby #{Shellwords.escape(f)} -- --offline",
+      log: $stdout, env: { 'RACK_ENV' => 'picks' }
+    )
   end
 end
 

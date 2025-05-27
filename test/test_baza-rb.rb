@@ -368,7 +368,6 @@ class TestBazaRb < Minitest::Test
     "fake#{SecureRandom.hex(8)}"
   end
 
-  # rubocop:disable Style/GlobalVars
   def we_are_online
     $we_are_online ||= !ARGV.include?('--offline') && uri_is_alive('https://www.zerocracy.com')
   end
