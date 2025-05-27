@@ -609,26 +609,41 @@ class BazaRb
     raise 'The "zip" of the job is nil' if zip.nil?
     success = false
     FileUtils.rm_f(zip)
+    job = nil
     elapsed(@loog) do
-      File.open(zip, 'wb') do |f|
-        request = Typhoeus::Request.new(
-          home.append('pop').add(owner:).to_s,
-          method: :get,
-          headers: headers.merge(
-            'Accept' => 'application/octet-stream'
-          ),
-          connecttimeout: @timeout,
-          timeout: @timeout
-        )
-        request.on_body do |chunk|
-          f.write(chunk)
+      File.open(zip, 'wb+') do |f|
+        loop do
+          uri = home.append('pop').add(owner:)
+          uri = uri.add(job:) if job
+          request = Typhoeus::Request.new(
+            uri.to_s,
+            method: :get,
+            headers: headers.merge(
+              'Accept' => 'application/octet-stream',
+              'Range' => "bytes=#{f.size}-"
+            ),
+            connecttimeout: @timeout,
+            timeout: @timeout
+          )
+          request.on_body do |chunk|
+            f.write(chunk)
+          end
+          with_retries(max_tries: @retries, rescue: TimedOut) do
+            request.run
+          end
+          ret = request.response
+          checked(ret, [200, 204, 206])
+          success = ret.code != 204
+          if ret.code == 206
+            job = ret.headers['X-Zerocracy-JobId'].to_i
+            _, v = ret.headers['Content-Range'].split(' ')
+            range, total = v.split('/')
+            b, e = range.split('-')
+            break if e.to_i == total.to_i - 1
+          else
+            break
+          end
         end
-        with_retries(max_tries: @retries, rescue: TimedOut) do
-          request.run
-        end
-        ret = request.response
-        checked(ret, [200, 204])
-        success = ret.code == 200
       end
       unless success
         FileUtils.rm_f(zip)

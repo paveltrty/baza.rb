@@ -121,7 +121,7 @@ class TestBazaRb < Minitest::Test
     stub_request(:post, 'https://example.org/account/transfer').to_return(
       status: 302, headers: { 'X-Zerocracy-ReceiptId' => '42' }
     )
-    id = BazaRb.new('example.org', 443, '000').transfer('jeff', 42.50, 'for fun')
+    id = fake_baza.transfer('jeff', 42.50, 'for fun')
     assert_equal(42, id)
   end
 
@@ -131,7 +131,7 @@ class TestBazaRb < Minitest::Test
     stub_request(:post, 'https://example.org/account/transfer').to_return(
       status: 302, headers: { 'X-Zerocracy-ReceiptId' => '42' }
     )
-    id = BazaRb.new('example.org', 443, '000').transfer('jeff', 42.50, 'for fun', job: 555)
+    id = fake_baza.transfer('jeff', 42.50, 'for fun', job: 555)
     assert_equal(42, id)
   end
 
@@ -144,7 +144,7 @@ class TestBazaRb < Minitest::Test
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'test.bin')
       File.binwrite(file, 'hello')
-      assert_equal(42, BazaRb.new('example.org', 443, '000').durable_place('simple', file))
+      assert_equal(42, fake_baza.durable_place('simple', file))
     end
   end
 
@@ -155,16 +155,47 @@ class TestBazaRb < Minitest::Test
     )
     assert_equal(
       42,
-      BazaRb.new('example.org', 443, '000').push('simple', 'hello, world!', [])
+      fake_baza.push('simple', 'hello, world!', [])
     )
   end
 
-  def test_simple_pop
+  def test_simple_pop_with_no_job_found
     WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org/pop?owner=me').to_return(status: 204)
     Tempfile.open do |zip|
-      refute(BazaRb.new('example.org', 443, '000').pop('me', zip.path))
+      refute(fake_baza.pop('me', zip.path))
       refute_path_exists(zip.path)
+    end
+  end
+
+  def test_simple_pop_with_ranges
+    WebMock.disable_net_connect!
+    owner = 'o888'
+    job = 42
+    stub_request(:get, 'https://example.org/pop')
+      .with(query: { owner: })
+      .to_return(status: 206, headers: { 'Content-Range' => 'bytes 0-0/*', 'X-Zerocracy-JobId' => job }, body: '')
+    bin = nil
+    Tempfile.open do |zip|
+      File.binwrite(zip.path, 'the archive to return (not a real ZIP for now)')
+      bin = File.binread(zip.path)
+      stub_request(:get, 'https://example.org/pop')
+        .with(query: { job:, owner: })
+        .with(headers: { 'Range' => 'bytes=0-' })
+        .to_return(
+          status: 206,
+          headers: { 'Content-Range' => "bytes 0-7/#{bin.size}", 'X-Zerocracy-JobId' => '42' },
+          body: bin[0..7]
+        )
+      stub_request(:get, 'https://example.org/pop')
+        .with(query: { job:, owner: })
+        .with(headers: { 'Range' => 'bytes=8-' })
+        .to_return(status: 206, headers: { 'Content-Range' => "bytes 8-#{bin.size - 1}/#{bin.size}" }, body: bin[8..])
+    end
+    Tempfile.open do |zip|
+      assert(fake_baza.pop(owner, zip.path))
+      assert_path_exists(zip.path)
+      assert_equal(bin, File.binread(zip.path))
     end
   end
 
@@ -172,7 +203,7 @@ class TestBazaRb < Minitest::Test
     WebMock.disable_net_connect!
     stub_request(:put, 'https://example.org/finish?id=42').to_return(status: 200)
     Tempfile.open do |zip|
-      BazaRb.new('example.org', 443, '000').finish(42, zip.path)
+      fake_baza.finish(42, zip.path)
     end
   end
 
@@ -183,7 +214,7 @@ class TestBazaRb < Minitest::Test
       .to_return(status: 200, body: '42')
     assert_equal(
       42,
-      BazaRb.new('example.org', 443, '000').recent('simple')
+      fake_baza.recent('simple')
     )
   end
 
@@ -193,7 +224,7 @@ class TestBazaRb < Minitest::Test
       status: 200, body: 'yes'
     )
     assert(
-      BazaRb.new('example.org', 443, '000').name_exists?('simple')
+      fake_baza.name_exists?('simple')
     )
   end
 
@@ -203,7 +234,7 @@ class TestBazaRb < Minitest::Test
       status: 200, body: '0'
     )
     assert_predicate(
-      BazaRb.new('example.org', 443, '000').exit_code(42), :zero?
+      fake_baza.exit_code(42), :zero?
     )
   end
 
@@ -213,7 +244,7 @@ class TestBazaRb < Minitest::Test
       status: 200, body: 'hello!'
     )
     refute_empty(
-      BazaRb.new('example.org', 443, '000').stdout(42)
+      fake_baza.stdout(42)
     )
   end
 
@@ -223,21 +254,21 @@ class TestBazaRb < Minitest::Test
       status: 200, body: 'hello, world!'
     )
     assert(
-      BazaRb.new('example.org', 443, '000').pull(333).start_with?('hello')
+      fake_baza.pull(333).start_with?('hello')
     )
   end
 
   def test_simple_lock_success
     WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org/lock/name?owner=owner').to_return(status: 302)
-    BazaRb.new('example.org', 443, '000').lock('name', 'owner')
+    fake_baza.lock('name', 'owner')
   end
 
   def test_simple_lock_failure
     WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org/lock/name?owner=owner').to_return(status: 409)
     assert_raises(StandardError) do
-      BazaRb.new('example.org', 443, '000').lock('name', 'owner')
+      fake_baza.lock('name', 'owner')
     end
   end
 
@@ -246,7 +277,7 @@ class TestBazaRb < Minitest::Test
     stub_request(:put, 'https://example.org/push/foo')
       .to_return(status: 503, body: 'oops', headers: { 'X-Zerocracy-Failure': 'the failure' })
       .to_raise('why second time?')
-    e = assert_raises(StandardError) { BazaRb.new('example.org', 443, '000').push('foo', 'data', []) }
+    e = assert_raises(StandardError) { fake_baza.push('foo', 'data', []) }
     [
       'Invalid response code #503',
       '"the failure"'
@@ -362,6 +393,10 @@ class TestBazaRb < Minitest::Test
       t.join
     end
     req
+  end
+
+  def fake_baza
+    BazaRb.new('example.org', 443, '000', loog: Loog::VERBOSE)
   end
 
   def fake_name
