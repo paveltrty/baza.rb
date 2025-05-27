@@ -301,7 +301,7 @@ class BazaRb
           )
         end
       throw :"Job name '#{name}' locked at #{@host}" if ret.code == 302
-      raise "Failed to lock '#{name}' job at #{@host}, it's most probably already locked"
+      raise "Failed to lock '#{name}' job at #{@host}, it's already locked"
     end
   end
 
@@ -313,6 +313,7 @@ class BazaRb
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
     raise 'The "owner" of the lock is nil' if owner.nil?
+    raise 'The "owner" of the lock may not be empty' if owner.empty?
     elapsed(@loog) do
       with_retries(max_tries: @retries, rescue: TimedOut) do
         checked(
@@ -551,7 +552,7 @@ class BazaRb
           )
         end
       id = ret.headers['X-Zerocracy-ReceiptId'].to_i
-      throw :"Transferred ##{amount} to @#{recipient} at #{@host}"
+      throw :"Transferred Ƶ#{format('%0.6f', amount)} to @#{recipient} at #{@host}"
     end
     id
   end
@@ -594,7 +595,7 @@ class BazaRb
           )
         end
       id = ret.headers['X-Zerocracy-ReceiptId'].to_i
-      throw :"Fee ##{format('%.02f', amount)} paid at #{@host}"
+      throw :"Fee Ƶ#{format('%0.6f', amount)} paid at #{@host}"
     end
     id
   end

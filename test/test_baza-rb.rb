@@ -135,6 +135,36 @@ class TestBazaRb < Minitest::Test
     assert_equal(42, id)
   end
 
+  def test_reads_whoami
+    WebMock.disable_net_connect!
+    stub_request(:get, 'https://example.org/whoami').to_return(status: 200, body: 'jeff')
+    assert_equal('jeff', fake_baza.whoami)
+  end
+
+  def test_reads_balance
+    WebMock.disable_net_connect!
+    stub_request(:get, 'https://example.org/account/balance').to_return(status: 200, body: '42.33')
+    assert_in_delta(42.33, fake_baza.balance)
+  end
+
+  def test_checks_whether_job_is_finished
+    WebMock.disable_net_connect!
+    stub_request(:get, 'https://example.org/finished/42').to_return(status: 200, body: 'yes')
+    assert(fake_baza.finished?(42))
+  end
+
+  def test_reads_verification_verdict
+    WebMock.disable_net_connect!
+    stub_request(:get, 'https://example.org/jobs/42/verified.txt').to_return(status: 200, body: 'done')
+    assert(fake_baza.verified(42))
+  end
+
+  def test_unlocks_job_by_name
+    WebMock.disable_net_connect!
+    stub_request(:get, 'https://example.org/unlock/foo?owner=x').to_return(status: 302)
+    assert(fake_baza.unlock('foo', 'x'))
+  end
+
   def test_durable_place
     WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')
