@@ -21,7 +21,7 @@ require_relative '../lib/baza-rb'
 # Copyright:: Copyright (c) 2024-2025 Yegor Bugayenko
 # License:: MIT
 class TestBazaRb < Minitest::Test
-  # The token to use for testing:
+  # The token to use for testing, in Zerocracy.com:
   TOKEN = '00000000-0000-0000-0000-000000000000'
 
   # The host of the production platform:
@@ -31,7 +31,7 @@ class TestBazaRb < Minitest::Test
   PORT = 443
 
   # Live agent:
-  LIVE = BazaRb.new(HOST, PORT, TOKEN, loog: Loog::VERBOSE)
+  LIVE = BazaRb.new(HOST, PORT, TOKEN, loog: Loog::NULL)
 
   def test_live_push
     WebMock.enable_net_connect!
@@ -174,7 +174,11 @@ class TestBazaRb < Minitest::Test
     job = 4242
     stub_request(:get, 'https://example.org/pop')
       .with(query: { owner: })
-      .to_return(status: 206, headers: { 'Content-Range' => 'bytes 0-0/*', 'X-Zerocracy-JobId' => job }, body: '')
+      .to_return(
+        status: 206,
+        headers: { 'Content-Range' => 'bytes 0-0/*', 'X-Zerocracy-JobId' => job, 'Content-Length' => 0 },
+        body: ''
+      )
     bin = nil
     Tempfile.open do |zip|
       File.binwrite(zip.path, 'the archive to return (not a real ZIP for now)')
