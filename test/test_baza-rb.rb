@@ -400,7 +400,7 @@ class TestBazaRb < Minitest::Test
   end
 
   def fake_baza
-    BazaRb.new('example.org', 443, '000', loog: Loog::VERBOSE)
+    BazaRb.new('example.org', 443, '000', loog: Loog::NULL)
   end
 
   def fake_name
