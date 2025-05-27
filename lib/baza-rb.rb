@@ -634,19 +634,16 @@ class BazaRb
           ret = request.response
           checked(ret, [200, 204, 206])
           success = ret.code != 204
-          if ret.code == 206
-            job = ret.headers['X-Zerocracy-JobId']
-            raise 'Job ID is not returned in X-Zerocracy-JobId' if job.nil?
-            raise "Job ID returned in X-Zerocracy-JobId is not valid (#{job.inspect})" unless job.match?(/^[0-9]+$/)
-            _, v = ret.headers['Content-Range'].split(' ')
-            range, total = v.split('/')
-            raise "Total size is not valid (#{total.inspect})" unless total.match?(/^\*|[0-9]+$/)
-            b, e = range.split('-')
-            raise "Range is not valid (#{range.inspect})" unless e.match?(/^[0-9]+$/)
-            break if e.to_i == total.to_i - 1
-          else
-            break
-          end
+          break unless ret.code == 206
+          job = ret.headers['X-Zerocracy-JobId']
+          raise 'Job ID is not returned in X-Zerocracy-JobId' if job.nil?
+          raise "Job ID returned in X-Zerocracy-JobId is not valid (#{job.inspect})" unless job.match?(/^[0-9]+$/)
+          _, v = ret.headers['Content-Range'].split
+          range, total = v.split('/')
+          raise "Total size is not valid (#{total.inspect})" unless total.match?(/^\*|[0-9]+$/)
+          _, e = range.split('-')
+          raise "Range is not valid (#{range.inspect})" unless e.match?(/^[0-9]+$/)
+          break if e.to_i == total.to_i - 1
         end
       end
       unless success

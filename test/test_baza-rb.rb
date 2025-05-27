@@ -170,8 +170,8 @@ class TestBazaRb < Minitest::Test
 
   def test_simple_pop_with_ranges
     WebMock.disable_net_connect!
-    owner = 'o888'
-    job = 42
+    owner = 'owner888'
+    job = 4242
     stub_request(:get, 'https://example.org/pop')
       .with(query: { owner: })
       .to_return(status: 206, headers: { 'Content-Range' => 'bytes 0-0/*', 'X-Zerocracy-JobId' => job }, body: '')
