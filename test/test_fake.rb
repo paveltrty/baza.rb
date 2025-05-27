@@ -8,7 +8,7 @@ require_relative '../lib/baza-rb/fake'
 
 # Test fake object.
 # Author:: Yegor Bugayenko (yegor256@gmail.com)
-# Copyright:: Copyright (c) 2024 Yegor Bugayenko
+# Copyright:: Copyright (c) 2024-2025 Yegor Bugayenko
 # License:: MIT
 class TestFake < Minitest::Test
   def test_whoami

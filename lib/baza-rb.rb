@@ -16,11 +16,16 @@ require 'typhoeus'
 require 'zlib'
 require_relative 'baza-rb/version'
 
-# Interface to the API of zerocracy.com.
+# Ruby client for the Zerocracy API.
 #
-# You make an instance of this class and then call one of its methods.
-# The object will make HTTP request to api.zerocracy.com and interpret the
-# results returned.
+# This class provides a complete interface to interact with the Zerocracy
+# platform API. Create an instance with your authentication token and use
+# its methods to manage jobs, transfer funds, handle durables, and more.
+#
+# @example Basic usage
+#   baza = BazaRb.new('api.zerocracy.com', 443, 'your-token-here')
+#   puts baza.whoami        # => "your-github-username"
+#   puts baza.balance       # => 100.5
 #
 # Author:: Yegor Bugayenko (yegor256@gmail.com)
 # Copyright:: Copyright (c) 2024-2025 Yegor Bugayenko
@@ -35,16 +40,16 @@ class BazaRb
   # Unexpected response arrived from the server.
   class BadResponse < StandardError; end
 
-  # Ctor.
+  # Initialize a new Zerocracy API client.
   #
-  # @param [String] host Host name
-  # @param [Integer] port TCP port
-  # @param [String] token Secret token of zerocracy.com
-  # @param [Boolean] ssl Should we use SSL?
-  # @param [Float] timeout Connect timeout and session timeout, in seconds
-  # @param [Integer] retries How many times to retry on connection failure?
-  # @param [Loog] loog The logging facility
-  # @param [Boolean] compress Set to TRUE if need to use GZIP while pulling and sending
+  # @param [String] host The API host name (e.g., 'api.zerocracy.com')
+  # @param [Integer] port The TCP port to connect to (usually 443 for HTTPS)
+  # @param [String] token Your Zerocracy API authentication token
+  # @param [Boolean] ssl Whether to use SSL/HTTPS (default: true)
+  # @param [Float] timeout Connection and request timeout in seconds (default: 30)
+  # @param [Integer] retries Number of retries on connection failure (default: 3)
+  # @param [Loog] loog The logging facility (default: Loog::NULL)
+  # @param [Boolean] compress Whether to use GZIP compression for requests/responses (default: true)
   def initialize(host, port, token, ssl: true, timeout: 30, retries: 3, loog: Loog::NULL, compress: true)
     @host = host
     @port = port
@@ -58,7 +63,8 @@ class BazaRb
 
   # Get GitHub login name of the logged in user.
   #
-  # @return [String] GitHub nickname
+  # @return [String] GitHub nickname of the authenticated user
+  # @raise [ServerFailure] If authentication fails or server returns an error
   def whoami
     nick = nil
     elapsed(@loog) do
@@ -77,9 +83,10 @@ class BazaRb
     nick
   end
 
-  # Get current balance, in Ƶ.
+  # Get current balance of the authenticated user.
   #
-  # @return [Float] The balance, as float
+  # @return [Float] The balance in zents (Ƶ), where 1 Ƶ = 1 USDT
+  # @raise [ServerFailure] If authentication fails or server returns an error
   def balance
     z = nil
     elapsed(@loog) do
@@ -98,12 +105,13 @@ class BazaRb
     z
   end
 
-  # Push factbase to the server.
+  # Push factbase to the server to create a new job.
   #
-  # @param [String] name The name of the job on the server
-  # @param [Bytes] data The data to push to the server (binary)
-  # @param [Array<String>] meta List of metas, possibly empty
-  # @return [Integer] Job ID on the server
+  # @param [String] name The unique name of the job on the server
+  # @param [String] data The binary data to push to the server (factbase content)
+  # @param [Array<String>] meta List of metadata strings to attach to the job
+  # @return [Integer] Job ID assigned by the server
+  # @raise [ServerFailure] If the push operation fails
   def push(name, data, meta)
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
@@ -139,10 +147,11 @@ class BazaRb
     id
   end
 
-  # Pull factbase from the server.
+  # Pull factbase from the server for a specific job.
   #
   # @param [Integer] id The ID of the job on the server
-  # @return [Bytes] Binary data pulled
+  # @return [String] Binary data of the factbase (can be saved to file)
+  # @raise [ServerFailure] If the job doesn't exist or pull fails
   def pull(id)
     raise 'The ID of the job is nil' if id.nil?
     raise 'The ID of the job must be a positive integer' unless id.positive?
@@ -175,10 +184,11 @@ class BazaRb
     data
   end
 
-  # The job with this ID is finished already?
+  # Check if the job with this ID is finished already.
   #
   # @param [Integer] id The ID of the job on the server
-  # @return [Boolean] TRUE if the job is already finished
+  # @return [Boolean] TRUE if the job has completed execution, FALSE otherwise
+  # @raise [ServerFailure] If the job doesn't exist
   def finished?(id)
     raise 'The ID of the job is nil' if id.nil?
     raise 'The ID of the job must be a positive integer' unless id.positive?
@@ -291,7 +301,7 @@ class BazaRb
           )
         end
       throw :"Job name '#{name}' locked at #{@host}" if ret.code == 302
-      raise "Failed to lock '#{name}' job at #{@host}, it's most probably already locked"
+      raise "Failed to lock '#{name}' job at #{@host}, it's already locked"
     end
   end
 
@@ -303,6 +313,7 @@ class BazaRb
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
     raise 'The "owner" of the lock is nil' if owner.nil?
+    raise 'The "owner" of the lock may not be empty' if owner.empty?
     elapsed(@loog) do
       with_retries(max_tries: @retries, rescue: TimedOut) do
         checked(
@@ -365,10 +376,12 @@ class BazaRb
     exists
   end
 
-  # Place a single durable.
+  # Place a single durable file on the server.
   #
   # @param [String] jname The name of the job on the server
-  # @param [String] file The file name
+  # @param [String] file The path to the file to upload
+  # @return [Integer] The ID of the created durable
+  # @raise [ServerFailure] If the upload fails
   def durable_place(jname, file)
     raise 'The "jname" of the durable is nil' if jname.nil?
     raise 'The "jname" of the durable may not be empty' if jname.empty?
@@ -503,13 +516,14 @@ class BazaRb
     end
   end
 
-  # Transfer some funds to another user.
+  # Transfer funds to another user.
   #
-  # @param [String] recipient GitHub name (e.g. "yegor256") of the recipient
-  # @param [Float] amount The amount in Z/USDT (not zents!)
-  # @param [String] summary The description of the payment
-  # @param [Integer] job The ID of the job or NIL
-  # @return [Integer] Receipt ID
+  # @param [String] recipient GitHub username of the recipient (e.g. "yegor256")
+  # @param [Float] amount The amount to transfer in Ƶ (zents)
+  # @param [String] summary The description/reason for the payment
+  # @param [Integer] job Optional job ID to associate with this transfer
+  # @return [Integer] Receipt ID for the transaction
+  # @raise [ServerFailure] If the transfer fails
   def transfer(recipient, amount, summary, job: nil)
     raise 'The "recipient" is nil' if recipient.nil?
     raise 'The "amount" is nil' if amount.nil?
@@ -538,18 +552,19 @@ class BazaRb
           )
         end
       id = ret.headers['X-Zerocracy-ReceiptId'].to_i
-      throw :"Transferred ##{amount} to @#{recipient} at #{@host}"
+      throw :"Transferred Ƶ#{format('%0.6f', amount)} to @#{recipient} at #{@host}"
     end
     id
   end
 
-  # Pay fee, while working with a job.
+  # Pay a fee associated with a job.
   #
-  # @param [String] tab The tab of the fee (use "unknown" if not sure)
-  # @param [Float] amount The amount in Z/USDT (not zents!)
-  # @param [String] summary The description of the payment
-  # @param [Integer] job The ID of the job
-  # @return [Integer] Receipt ID
+  # @param [String] tab The category/type of the fee (use "unknown" if not sure)
+  # @param [Float] amount The fee amount in Ƶ (zents)
+  # @param [String] summary The description/reason for the fee
+  # @param [Integer] job The ID of the job this fee is for
+  # @return [Integer] Receipt ID for the fee payment
+  # @raise [ServerFailure] If the payment fails
   def fee(tab, amount, summary, job)
     raise 'The "tab" is nil' if tab.nil?
     raise 'The "amount" is nil' if amount.nil?
@@ -580,40 +595,62 @@ class BazaRb
           )
         end
       id = ret.headers['X-Zerocracy-ReceiptId'].to_i
-      throw :"Fee ##{format('%.02f', amount)} paid at #{@host}"
+      throw :"Fee Ƶ#{format('%0.6f', amount)} paid at #{@host}"
     end
     id
   end
 
-  # Pop job from the server.
+  # Pop the next available job from the server's queue.
   #
-  # @param [String] owner Who is acting (could be any text)
-  # @param [String] zip The path to ZIP archive to take
-  # @return [Boolean] TRUE if job taken, otherwise false
+  # @param [String] owner Identifier of who is taking the job (any descriptive text)
+  # @param [String] zip The local file path where the job's ZIP archive will be saved
+  # @return [Boolean] TRUE if a job was successfully popped, FALSE if queue is empty
+  # @raise [ServerFailure] If the pop operation fails
   def pop(owner, zip)
     raise 'The "zip" of the job is nil' if zip.nil?
     success = false
     FileUtils.rm_f(zip)
+    job = nil
     elapsed(@loog) do
-      File.open(zip, 'wb') do |f|
-        request = Typhoeus::Request.new(
-          home.append('pop').add(owner:).to_s,
-          method: :get,
-          headers: headers.merge(
-            'Accept' => 'application/octet-stream'
-          ),
-          connecttimeout: @timeout,
-          timeout: @timeout
-        )
-        request.on_body do |chunk|
-          f.write(chunk)
+      File.open(zip, 'wb+') do |f|
+        loop do
+          uri = home.append('pop').add(owner:)
+          uri = uri.add(job:) if job
+          request = Typhoeus::Request.new(
+            uri.to_s,
+            method: :get,
+            headers: headers.merge(
+              'Accept' => 'application/octet-stream',
+              'Range' => "bytes=#{f.size}-"
+            ),
+            connecttimeout: @timeout,
+            timeout: @timeout
+          )
+          request.on_body do |chunk|
+            f.write(chunk)
+          end
+          with_retries(max_tries: @retries, rescue: TimedOut) do
+            request.run
+          end
+          ret = request.response
+          checked(ret, [200, 204, 206])
+          success = ret.code != 204
+          break unless ret.code == 206
+          job = ret.headers['X-Zerocracy-JobId']
+          raise 'Job ID is not returned in X-Zerocracy-JobId' if job.nil?
+          raise "Job ID returned in X-Zerocracy-JobId is not valid (#{job.inspect})" unless job.match?(/^[0-9]+$/)
+          _, v = ret.headers['Content-Range'].split
+          range, total = v.split('/')
+          raise "Total size is not valid (#{total.inspect})" unless total.match?(/^\*|[0-9]+$/)
+          b, e = range.split('-')
+          raise "Range is not valid (#{range.inspect})" unless e.match?(/^[0-9]+$/)
+          len = ret.headers['Content-Length'].to_i
+          unless len.zero?
+            raise "Range size (#{range.inspect}) is not equal to Content-Length" unless len - 1 == e.to_i - b.to_i
+            raise "Range end (#{range.inspect}) is not equal to #{f.size}" if e.to_i != f.size - 1
+          end
+          break if e.to_i == total.to_i - 1
         end
-        with_retries(max_tries: @retries, rescue: TimedOut) do
-          request.run
-        end
-        ret = request.response
-        checked(ret, [200, 204])
-        success = ret.code == 200
       end
       unless success
         FileUtils.rm_f(zip)
@@ -624,10 +661,11 @@ class BazaRb
     success
   end
 
-  # Submit a ZIP archive to finish a job.
+  # Submit a ZIP archive to finish a previously popped job.
   #
-  # @param [Integer] id The ID of the job on the server
-  # @param [String] zip The path to the ZIP file with the content of the archive
+  # @param [Integer] id The ID of the job to finish
+  # @param [String] zip The path to the ZIP file containing job results
+  # @raise [ServerFailure] If the submission fails
   def finish(id, zip)
     raise 'The ID of the job is nil' if id.nil?
     raise 'The ID of the job must be a positive integer' unless id.positive?
@@ -652,13 +690,19 @@ class BazaRb
     end
   end
 
-  # Enter a valve.
+  # Enter a valve to cache or retrieve a computation result.
+  #
+  # Valves prevent duplicate computations by caching results. If a result
+  # for the given badge already exists, it's returned. Otherwise, the block
+  # is executed and its result is cached.
   #
   # @param [String] name Name of the job
-  # @param [String] badge Unique badge of the valve
-  # @param [String] why The reason
-  # @param [nil|Integer] job The ID of the job
-  # @return [String] The result just calculated or retrieved
+  # @param [String] badge Unique identifier for this valve/computation
+  # @param [String] why The reason/description for entering this valve
+  # @param [nil|Integer] job Optional job ID to associate with this valve
+  # @yield Block that computes the result if not cached
+  # @return [String] The cached result or newly computed result from the block
+  # @raise [ServerFailure] If the valve operation fails
   def enter(name, badge, why, job)
     elapsed(@loog, intro: "Entered valve #{badge} to #{name}") do
       with_retries(max_tries: @retries, rescue: TimedOut) do
@@ -692,8 +736,13 @@ class BazaRb
     end
   end
 
-  # Get CSRF token from the server.
-  # @return [String] The token for this user
+  # Get CSRF token from the server for authenticated requests.
+  #
+  # The CSRF token is required for POST requests to prevent cross-site
+  # request forgery attacks.
+  #
+  # @return [String] The CSRF token for the authenticated user
+  # @raise [ServerFailure] If token retrieval fails
   def csrf
     token = nil
     elapsed(@loog) do
@@ -780,7 +829,7 @@ class BazaRb
     case ret.code
     when 500
       msg +=
-        ', most probably it\'s an internal error on the server, ' \
+        ", most probably it's an internal error on the server, " \
         'please report this to https://github.com/zerocracy/baza'
     when 503
       msg +=
@@ -788,7 +837,7 @@ class BazaRb
         'please report this to https://github.com/zerocracy/baza.rb'
     when 404
       msg +=
-        ', most probably you are trying to reach a wrong server, which doesn\'t ' \
+        ", most probably you are trying to reach a wrong server, which doesn't " \
         'have the URL that it is expected to have'
     when 0
       msg += ', most likely an internal error'
