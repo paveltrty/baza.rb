@@ -188,7 +188,11 @@ class TestBazaRb < Minitest::Test
         .with(headers: { 'Range' => 'bytes=0-' })
         .to_return(
           status: 206,
-          headers: { 'Content-Range' => "bytes 0-7/#{bin.size}", 'X-Zerocracy-JobId' => job },
+          headers: {
+            'Content-Range' => "bytes 0-7/#{bin.size}",
+            'X-Zerocracy-JobId' => job,
+            'Content-Length' => 8
+          },
           body: bin[0..7]
         )
       stub_request(:get, 'https://example.org/pop')
@@ -196,7 +200,11 @@ class TestBazaRb < Minitest::Test
         .with(headers: { 'Range' => 'bytes=8-' })
         .to_return(
           status: 206,
-          headers: { 'Content-Range' => "bytes 8-#{bin.size - 1}/#{bin.size}", 'X-Zerocracy-JobId' => job },
+          headers: {
+            'Content-Range' => "bytes 8-#{bin.size - 1}/#{bin.size}",
+            'X-Zerocracy-JobId' => job,
+            'Content-Length' => bin.size - 8
+          },
           body: bin[8..]
         )
     end
