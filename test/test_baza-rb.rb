@@ -417,6 +417,162 @@ class TestBazaRb < Minitest::Test
     end
   end
 
+  def test_durable_save
+    Dir.mktmpdir do |dir|
+      file = File.join(dir, 'test.txt')
+      File.write(file, 'test content')
+      stub_request(:put, 'https://example.org:443/durables/42')
+        .with(headers: { 'X-Zerocracy-Token' => '000' }, body: 'test content')
+        .to_return(status: 200)
+      fake_baza.durable_save(42, file)
+    end
+  end
+
+  def test_durable_load
+    Dir.mktmpdir do |dir|
+      file = File.join(dir, 'loaded.txt')
+      stub_request(:get, 'https://example.org:443/durables/42')
+        .with(headers: { 'X-Zerocracy-Token' => '000' })
+        .to_return(status: 200, body: 'loaded content')
+      fake_baza.durable_load(42, file)
+      assert_equal('loaded content', File.read(file))
+    end
+  end
+
+  def test_durable_lock
+    stub_request(:get, 'https://example.org:443/durables/42/lock?owner=test-owner')
+      .with(headers: { 'X-Zerocracy-Token' => '000' })
+      .to_return(status: 302)
+    fake_baza.durable_lock(42, 'test-owner')
+  end
+
+  def test_durable_unlock
+    stub_request(:get, 'https://example.org:443/durables/42/unlock?owner=test-owner')
+      .with(headers: { 'X-Zerocracy-Token' => '000' })
+      .to_return(status: 302)
+    fake_baza.durable_unlock(42, 'test-owner')
+  end
+
+  def test_fee
+    stub_request(:get, 'https://example.org:443/csrf')
+      .with(headers: { 'X-Zerocracy-Token' => '000' })
+      .to_return(status: 200, body: 'csrf-token')
+    stub_request(:post, 'https://example.org:443/account/fee')
+      .with(
+        headers: { 'X-Zerocracy-Token' => '000' },
+        body: {
+          '_csrf' => 'csrf-token',
+          'tab' => 'unknown',
+          'amount' => '10.500000',
+          'summary' => 'Test fee',
+          'job' => '123'
+        }
+      )
+      .to_return(status: 302, headers: { 'X-Zerocracy-ReceiptId' => '456' })
+    receipt = fake_baza.fee('unknown', 10.5, 'Test fee', 123)
+    assert_equal(456, receipt)
+  end
+
+  def test_enter
+    stub_request(:get, 'https://example.org:443/valves/result?badge=test-badge')
+      .with(headers: { 'X-Zerocracy-Token' => '000' })
+      .to_return(status: 200, body: 'cached result')
+    result = fake_baza.enter('test-valve', 'test-badge', 'test reason', 123) { 'new result' }
+    assert_equal('cached result', result)
+  end
+
+  def test_enter_not_cached
+    stub_request(:get, 'https://example.org:443/valves/result?badge=test-badge')
+      .with(headers: { 'X-Zerocracy-Token' => '000' })
+      .to_return(status: 204)
+    stub_request(:get, 'https://example.org:443/csrf')
+      .with(headers: { 'X-Zerocracy-Token' => '000' })
+      .to_return(status: 200, body: 'csrf-token')
+    stub_request(:post, 'https://example.org:443/valves/add?job=123')
+      .with(
+        headers: { 'X-Zerocracy-Token' => '000' },
+        body: {
+          '_csrf' => 'csrf-token',
+          'name' => 'test-valve',
+          'badge' => 'test-badge',
+          'why' => 'test reason',
+          'result' => 'new result'
+        }
+      )
+      .to_return(status: 302)
+    result = fake_baza.enter('test-valve', 'test-badge', 'test reason', 123) { 'new result' }
+    assert_equal('new result', result)
+  end
+
+  def test_checked_with_500_error
+    stub_request(:get, 'https://example.org:443/test')
+      .with(headers: { 'X-Zerocracy-Token' => '000' })
+      .to_return(status: 500)
+    error =
+      assert_raises(BazaRb::ServerFailure) do
+        fake_baza.send(:checked,
+                       Typhoeus.get('https://example.org:443/test', headers: { 'X-Zerocracy-Token' => '000' }))
+      end
+    assert_includes(error.message, 'Invalid response code #500')
+    assert_includes(error.message, "most probably it's an internal error on the server")
+  end
+
+  def test_checked_with_503_error
+    stub_request(:get, 'https://example.org:443/test')
+      .with(headers: { 'X-Zerocracy-Token' => '000' })
+      .to_return(status: 503, headers: { 'X-Zerocracy-Failure' => 'Service unavailable' })
+    error =
+      assert_raises(BazaRb::ServerFailure) do
+        fake_baza.send(:checked,
+                       Typhoeus.get('https://example.org:443/test', headers: { 'X-Zerocracy-Token' => '000' }))
+      end
+    assert_includes(error.message, 'Invalid response code #503')
+    assert_includes(error.message, "most probably it's an internal error on the server")
+    assert_includes(error.message, 'Service unavailable')
+  end
+
+  def test_checked_with_404_error
+    stub_request(:get, 'https://example.org:443/test')
+      .with(headers: { 'X-Zerocracy-Token' => '000' })
+      .to_return(status: 404)
+    error =
+      assert_raises(BazaRb::ServerFailure) do
+        fake_baza.send(:checked,
+                       Typhoeus.get('https://example.org:443/test', headers: { 'X-Zerocracy-Token' => '000' }))
+      end
+    assert_includes(error.message, 'Invalid response code #404')
+    assert_includes(error.message, 'most probably you are trying to reach a wrong server')
+  end
+
+  def test_checked_with_0_error
+    stub_request(:get, 'https://example.org:443/test')
+      .with(headers: { 'X-Zerocracy-Token' => '000' })
+      .to_return(status: 0)
+    error =
+      assert_raises(BazaRb::ServerFailure) do
+        fake_baza.send(:checked,
+                       Typhoeus.get('https://example.org:443/test', headers: { 'X-Zerocracy-Token' => '000' }))
+      end
+    assert_includes(error.message, 'Invalid response code #0')
+    assert_includes(error.message, 'most likely an internal error')
+  end
+
+  def test_push_without_compression
+    baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL, compress: false)
+    stub_request(:put, 'https://example.org:443/push/test')
+      .with(
+        headers: {
+          'X-Zerocracy-Token' => '000',
+          'Content-Type' => 'application/octet-stream',
+          'Content-Length' => '4'
+        },
+        body: 'data'
+      )
+      .to_return(status: 200, body: '123')
+    id = baza.push('test', 'data', [])
+    assert_equal(123, id)
+  end
+
   private
 
   def with_http_server(code, response, opts = {})
