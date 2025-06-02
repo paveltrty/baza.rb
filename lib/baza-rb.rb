@@ -840,7 +840,9 @@ class BazaRb
         ", most probably you are trying to reach a wrong server, which doesn't " \
         'have the URL that it is expected to have'
     when 0
-      msg += ', most likely an internal error'
+      msg +=
+        ', most likely a connection failure, timeout, or SSL error ' \
+        "(r:#{ret.return_code}, m:#{ret.return_message})"
     end
     @loog.error(msg)
     raise ServerFailure, msg

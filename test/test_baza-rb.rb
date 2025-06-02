@@ -554,7 +554,7 @@ class TestBazaRb < Minitest::Test
                        Typhoeus.get('https://example.org:443/test', headers: { 'X-Zerocracy-Token' => '000' }))
       end
     assert_includes(error.message, 'Invalid response code #0')
-    assert_includes(error.message, 'most likely an internal error')
+    assert_includes(error.message, 'most likely a connection failure')
   end
 
   def test_push_without_compression
