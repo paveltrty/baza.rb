@@ -45,7 +45,7 @@ class TestBazaRb < Minitest::Test
     assert_predicate(LIVE.recent(n), :positive?)
     id = LIVE.recent(n)
     assert(
-      wait_for(200) do
+      wait_for(8 * 60) do
         sleep(5)
         LIVE.finished?(id)
       end
@@ -390,7 +390,6 @@ class TestBazaRb < Minitest::Test
 
   def test_push_compression_disabled
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
     fb = Factbase.new
     fb.insert.foo = 'test-' * 10_000
     req =
@@ -403,7 +402,6 @@ class TestBazaRb < Minitest::Test
 
   def test_with_very_short_timeout
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
     host = '127.0.0.1'
     RandomPort::Pool::SINGLETON.acquire do |port|
       server = TCPServer.new(host, port)
@@ -608,7 +606,6 @@ class TestBazaRb < Minitest::Test
   def with_http_server(code, response, opts = {})
     opts = { ssl: false, timeout: 1 }.merge(opts)
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
     req = WEBrick::HTTPRequest.new(WEBrick::Config::HTTP)
     host = '127.0.0.1'
     RandomPort::Pool::SINGLETON.acquire do |port|
@@ -619,7 +616,7 @@ class TestBazaRb < Minitest::Test
           req.parse(socket)
           body = req.body
           len = req.header['content-length'].first.to_i
-          if len == body.size
+          if body.nil? || len == body.size
             socket.puts "HTTP/1.1 #{code} OK\r\nContent-Length: #{response.length}\r\n\r\n#{response}"
           else
             socket.puts "HTTP/1.1 400 Bad Request\r\n"

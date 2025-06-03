@@ -69,7 +69,7 @@ class BazaRb
     nick = nil
     elapsed(@loog) do
       ret =
-        with_retries(max_tries: @retries, rescue: TimedOut) do
+        retry_it do
           checked(
             Typhoeus::Request.get(
               home.append('whoami').to_s,
@@ -91,7 +91,7 @@ class BazaRb
     z = nil
     elapsed(@loog) do
       ret =
-        with_retries(max_tries: @retries, rescue: TimedOut) do
+        retry_it do
           checked(
             Typhoeus::Request.get(
               home.append('account').append('balance').to_s,
@@ -133,7 +133,7 @@ class BazaRb
     }
     elapsed(@loog) do
       ret =
-        with_retries(max_tries: @retries, rescue: TimedOut) do
+        retry_it do
           checked(
             Typhoeus::Request.put(
               home.append('push').append(name).to_s,
@@ -172,7 +172,7 @@ class BazaRb
           request.on_body do |chunk|
             f.write(chunk)
           end
-          with_retries(max_tries: @retries, rescue: TimedOut) do
+          retry_it do
             request.run
           end
           checked(request.response)
@@ -195,7 +195,7 @@ class BazaRb
     finished = false
     elapsed(@loog) do
       ret =
-        with_retries(max_tries: @retries, rescue: TimedOut) do
+        retry_it do
           checked(
             Typhoeus::Request.get(
               home.append('finished').append(id).to_s,
@@ -219,7 +219,7 @@ class BazaRb
     stdout = ''
     elapsed(@loog) do
       ret =
-        with_retries(max_tries: @retries, rescue: TimedOut) do
+        retry_it do
           checked(
             Typhoeus::Request.get(
               home.append('stdout').append("#{id}.txt").to_s,
@@ -243,7 +243,7 @@ class BazaRb
     code = 0
     elapsed(@loog) do
       ret =
-        with_retries(max_tries: @retries, rescue: TimedOut) do
+        retry_it do
           checked(
             Typhoeus::Request.get(
               home.append('exit').append("#{id}.txt").to_s,
@@ -267,7 +267,7 @@ class BazaRb
     verdict = ''
     elapsed(@loog) do
       ret =
-        with_retries(max_tries: @retries, rescue: TimedOut) do
+        retry_it do
           checked(
             Typhoeus::Request.get(
               home.append('jobs').append(id).append('verified.txt').to_s,
@@ -291,7 +291,7 @@ class BazaRb
     raise 'The "owner" of the lock is nil' if owner.nil?
     elapsed(@loog) do
       ret =
-        with_retries(max_tries: @retries, rescue: TimedOut) do
+        retry_it do
           checked(
             Typhoeus::Request.get(
               home.append('lock').append(name).add(owner:).to_s,
@@ -315,7 +315,7 @@ class BazaRb
     raise 'The "owner" of the lock is nil' if owner.nil?
     raise 'The "owner" of the lock may not be empty' if owner.empty?
     elapsed(@loog) do
-      with_retries(max_tries: @retries, rescue: TimedOut) do
+      retry_it do
         checked(
           Typhoeus::Request.get(
             home.append('unlock').append(name).add(owner:).to_s,
@@ -338,7 +338,7 @@ class BazaRb
     job = nil
     elapsed(@loog) do
       ret =
-        with_retries(max_tries: @retries, rescue: TimedOut) do
+        retry_it do
           checked(
             Typhoeus::Request.get(
               home.append('recent').append("#{name}.txt").to_s,
@@ -362,7 +362,7 @@ class BazaRb
     exists = false
     elapsed(@loog) do
       ret =
-        with_retries(max_tries: @retries, rescue: TimedOut) do
+        retry_it do
           checked(
             Typhoeus::Request.get(
               home.append('exists').append(name).to_s,
@@ -390,7 +390,7 @@ class BazaRb
     id = nil
     elapsed(@loog) do
       ret =
-        with_retries(max_tries: @retries, rescue: TimedOut) do
+        retry_it do
           checked(
             Typhoeus::Request.post(
               home.append('durables').append('place').to_s,
@@ -423,7 +423,7 @@ class BazaRb
     raise 'The "file" of the durable is nil' if file.nil?
     raise "The file '#{file}' is absent" unless File.exist?(file)
     elapsed(@loog) do
-      with_retries(max_tries: @retries, rescue: TimedOut) do
+      retry_it do
         checked(
           Typhoeus::Request.put(
             home.append('durables').append(id).to_s,
@@ -461,7 +461,7 @@ class BazaRb
         request.on_body do |chunk|
           f.write(chunk)
         end
-        with_retries(max_tries: @retries, rescue: TimedOut) do
+        retry_it do
           request.run
         end
         checked(request.response)
@@ -480,7 +480,7 @@ class BazaRb
     raise 'The "owner" of the lock is nil' if owner.nil?
     raise 'The "owner" of the lock may not be empty' if owner.empty?
     elapsed(@loog) do
-      with_retries(max_tries: @retries, rescue: TimedOut) do
+      retry_it do
         checked(
           Typhoeus::Request.get(
             home.append('durables').append(id).append('lock').add(owner:).to_s,
@@ -503,7 +503,7 @@ class BazaRb
     raise 'The "owner" of the lock is nil' if owner.nil?
     raise 'The "owner" of the lock may not be empty' if owner.empty?
     elapsed(@loog) do
-      with_retries(max_tries: @retries, rescue: TimedOut) do
+      retry_it do
         checked(
           Typhoeus::Request.get(
             home.append('durables').append(id).append('unlock').add(owner:).to_s,
@@ -539,7 +539,7 @@ class BazaRb
     body['job'] = job unless job.nil?
     elapsed(@loog) do
       ret =
-        with_retries(max_tries: @retries, rescue: TimedOut) do
+        retry_it do
           checked(
             Typhoeus::Request.post(
               home.append('account').append('transfer').to_s,
@@ -582,7 +582,7 @@ class BazaRb
     }
     elapsed(@loog) do
       ret =
-        with_retries(max_tries: @retries, rescue: TimedOut) do
+        retry_it do
           checked(
             Typhoeus::Request.post(
               home.append('account').append('fee').to_s,
@@ -629,7 +629,7 @@ class BazaRb
           request.on_body do |chunk|
             f.write(chunk)
           end
-          with_retries(max_tries: @retries, rescue: TimedOut) do
+          retry_it do
             request.run
           end
           ret = request.response
@@ -672,7 +672,7 @@ class BazaRb
     raise 'The "zip" of the job is nil' if zip.nil?
     raise "The 'zip' file is absent: #{zip}" unless File.exist?(zip)
     elapsed(@loog) do
-      with_retries(max_tries: @retries, rescue: TimedOut) do
+      retry_it do
         checked(
           Typhoeus::Request.put(
             home.append('finish').add(id:).to_s,
@@ -705,7 +705,7 @@ class BazaRb
   # @raise [ServerFailure] If the valve operation fails
   def enter(name, badge, why, job)
     elapsed(@loog, intro: "Entered valve #{badge} to #{name}") do
-      with_retries(max_tries: @retries, rescue: TimedOut) do
+      retry_it do
         ret = checked(
           Typhoeus::Request.get(
             home.append('valves').append('result').add(badge:).to_s,
@@ -746,7 +746,7 @@ class BazaRb
   def csrf
     token = nil
     elapsed(@loog) do
-      with_retries(max_tries: @retries, rescue: TimedOut) do
+      retry_it do
         token = checked(
           Typhoeus::Request.get(
             home.append('csrf').to_s,
@@ -798,6 +798,10 @@ class BazaRb
       .host(@host)
       .port(@port)
       .scheme(@ssl ? 'https' : 'http')
+  end
+
+  def retry_it(&)
+    with_retries(max_tries: @retries, rescue: TimedOut, &)
   end
 
   # Check the HTTP response and return it.
