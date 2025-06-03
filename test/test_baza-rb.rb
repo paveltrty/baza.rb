@@ -386,12 +386,14 @@ class TestBazaRb < Minitest::Test
   def test_push_compression_disabled
     WebMock.enable_net_connect!
     skip('We are offline') unless we_are_online
+    fb = Factbase.new
+    fb.insert.foo = 'test-' * 10_000
     req =
       with_http_server(200, 'yes', compress: false) do |baza|
-        baza.push('simple', 'hello, world!', %w[meta1 meta2 meta3])
+        baza.push('simple', fb.export, %w[meta1 meta2 meta3])
       end
     assert_equal('application/octet-stream', req.content_type)
-    assert_equal('hello, world!', req.body)
+    assert_equal(fb.export, req.body)
   end
 
   def test_with_very_short_timeout
