@@ -120,7 +120,7 @@ class BazaRb
     id = 0
     hdrs = headers.merge(
       'Content-Type' => 'application/octet-stream',
-      'Content-Length' => data.size
+      'Content-Length' => data.bytesize
     )
     unless meta.empty?
       hdrs = hdrs.merge('X-Zerocracy-Meta' => meta.map { |v| Base64.encode64(v).delete("\n") }.join(' '))
@@ -142,7 +142,7 @@ class BazaRb
           )
         end
       id = ret.body.to_i
-      throw :"Pushed #{data.size} bytes to #{@host}, job ID is ##{id}"
+      throw :"Pushed #{data.bytesize} bytes to #{@host}, job ID is ##{id}"
     end
     id
   end
@@ -178,7 +178,7 @@ class BazaRb
           checked(request.response)
         end
         data = File.binread(file)
-        throw :"Pulled #{data.size} bytes of job ##{id} factbase at #{@host}"
+        throw :"Pulled #{data.bytesize} bytes of job ##{id} factbase at #{@host}"
       end
     end
     data
@@ -778,7 +778,7 @@ class BazaRb
         {
           'Content-Type' => 'application/zip',
           'Content-Encoding' => 'gzip',
-          'Content-Length' => body.size
+          'Content-Length' => body.bytesize
         }
       )
     params.merge(body:, headers:)

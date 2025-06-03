@@ -31,7 +31,7 @@ class TestBazaRb < Minitest::Test
   PORT = 443
 
   # Live agent:
-  LIVE = BazaRb.new(HOST, PORT, TOKEN, loog: Loog::NULL)
+  LIVE = BazaRb.new(HOST, PORT, TOKEN, loog: Loog::VERBOSE)
 
   def test_live_push
     WebMock.enable_net_connect!
@@ -371,14 +371,16 @@ class TestBazaRb < Minitest::Test
   def test_push_compressed_content
     WebMock.enable_net_connect!
     skip('We are offline') unless we_are_online
+    fb = Factbase.new
+    fb.insert.foo = 'test-' * 10_000
     req =
       with_http_server(200, 'yes') do |baza|
-        baza.push('simple', 'hello, world!', %w[meta1 meta2 meta3])
+        baza.push('simple', fb.export, %w[meta1 meta2 meta3])
       end
     assert_equal('application/zip', req.content_type)
     assert_equal('gzip', req['content-encoding'])
     body = Zlib::GzipReader.zcat(StringIO.new(req.body))
-    assert_equal('hello, world!', body)
+    assert_equal(fb.export, body)
   end
 
   def test_push_compression_disabled

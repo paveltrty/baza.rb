@@ -14,7 +14,7 @@ Gem::Specification.new do |s|
   s.license = 'MIT'
   s.summary = 'Zerocracy API Ruby Client'
   s.description =
-    'It is a Ruby client for Zerocracy API, allowing you to check your jobs ' \
+    'It is a Ruby client for Zerocracy API, allowing you to check your job ' \
     'statuses, upload and download binaries, lock/unlock them, manage durables, ' \
     'and do everything else that is possible to do via the HTTP API.'
   s.authors = ['Yegor Bugayenko']
