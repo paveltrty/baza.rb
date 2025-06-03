@@ -422,7 +422,7 @@ class TestBazaRb < Minitest::Test
           BazaRb.new(host, port, '0000', ssl: false, timeout: 0.01).push('x', 'y', [])
         end.message, 'timed out in'
       )
-      t.join
+      assert(t.join(1))
     end
   end
 
