@@ -418,6 +418,7 @@ class TestBazaRb < Minitest::Test
   end
 
   def test_durable_save
+    WebMock.disable_net_connect!
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'test.txt')
       File.write(file, 'test content')
@@ -429,6 +430,7 @@ class TestBazaRb < Minitest::Test
   end
 
   def test_durable_load
+    WebMock.disable_net_connect!
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'loaded.txt')
       stub_request(:get, 'https://example.org:443/durables/42')
@@ -440,6 +442,7 @@ class TestBazaRb < Minitest::Test
   end
 
   def test_durable_lock
+    WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org:443/durables/42/lock?owner=test-owner')
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 302)
@@ -447,6 +450,7 @@ class TestBazaRb < Minitest::Test
   end
 
   def test_durable_unlock
+    WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org:443/durables/42/unlock?owner=test-owner')
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 302)
@@ -454,6 +458,7 @@ class TestBazaRb < Minitest::Test
   end
 
   def test_fee
+    WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org:443/csrf')
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 200, body: 'csrf-token')
@@ -474,6 +479,7 @@ class TestBazaRb < Minitest::Test
   end
 
   def test_enter
+    WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org:443/valves/result?badge=test-badge')
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 200, body: 'cached result')
@@ -482,6 +488,7 @@ class TestBazaRb < Minitest::Test
   end
 
   def test_enter_not_cached
+    WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org:443/valves/result?badge=test-badge')
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 204)
@@ -505,26 +512,32 @@ class TestBazaRb < Minitest::Test
   end
 
   def test_checked_with_500_error
+    WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org:443/test')
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 500)
     error =
       assert_raises(BazaRb::ServerFailure) do
-        fake_baza.send(:checked,
-                       Typhoeus.get('https://example.org:443/test', headers: { 'X-Zerocracy-Token' => '000' }))
+        fake_baza.send(
+          :checked,
+          Typhoeus.get('https://example.org:443/test', headers: { 'X-Zerocracy-Token' => '000' })
+        )
       end
     assert_includes(error.message, 'Invalid response code #500')
     assert_includes(error.message, "most probably it's an internal error on the server")
   end
 
   def test_checked_with_503_error
+    WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org:443/test')
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 503, headers: { 'X-Zerocracy-Failure' => 'Service unavailable' })
     error =
       assert_raises(BazaRb::ServerFailure) do
-        fake_baza.send(:checked,
-                       Typhoeus.get('https://example.org:443/test', headers: { 'X-Zerocracy-Token' => '000' }))
+        fake_baza.send(
+          :checked,
+          Typhoeus.get('https://example.org:443/test', headers: { 'X-Zerocracy-Token' => '000' })
+        )
       end
     assert_includes(error.message, 'Invalid response code #503')
     assert_includes(error.message, "most probably it's an internal error on the server")
@@ -532,19 +545,23 @@ class TestBazaRb < Minitest::Test
   end
 
   def test_checked_with_404_error
+    WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org:443/test')
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 404)
     error =
       assert_raises(BazaRb::ServerFailure) do
-        fake_baza.send(:checked,
-                       Typhoeus.get('https://example.org:443/test', headers: { 'X-Zerocracy-Token' => '000' }))
+        fake_baza.send(
+          :checked,
+          Typhoeus.get('https://example.org:443/test', headers: { 'X-Zerocracy-Token' => '000' })
+        )
       end
     assert_includes(error.message, 'Invalid response code #404')
     assert_includes(error.message, 'most probably you are trying to reach a wrong server')
   end
 
   def test_checked_with_0_error
+    WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org:443/test')
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 0)
@@ -558,6 +575,7 @@ class TestBazaRb < Minitest::Test
   end
 
   def test_push_without_compression
+    WebMock.disable_net_connect!
     baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL, compress: false)
     stub_request(:put, 'https://example.org:443/push/test')
       .with(
