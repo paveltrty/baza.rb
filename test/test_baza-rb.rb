@@ -606,11 +606,16 @@ class TestBazaRb < Minitest::Test
           socket = server.accept
           req.parse(socket)
           req.body
-          socket.puts "HTTP/1.1 #{code} OK\r\nContent-Length: #{response.length}\r\n\r\n#{response}"
+          len = req.header['content-length'].first.to_i
+          if len == req.body.size
+            socket.puts "HTTP/1.1 #{code} OK\r\nContent-Length: #{response.length}\r\n\r\n#{response}"
+          else
+            socket.puts "HTTP/1.1 400 Bad Request\r\n"
+          end
           socket.close
         end
       yield BazaRb.new(host, port, '0000', **opts)
-      t.join
+      assert(t.join(1))
     end
     req
   end
