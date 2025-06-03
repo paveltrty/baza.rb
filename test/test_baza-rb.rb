@@ -44,7 +44,12 @@ class TestBazaRb < Minitest::Test
     assert(LIVE.name_exists?(n))
     assert_predicate(LIVE.recent(n), :positive?)
     id = LIVE.recent(n)
-    assert(wait_for(200) { LIVE.finished?(id) })
+    assert(
+      wait_for(200) do
+        sleep(5)
+        LIVE.finished?(id)
+      end
+    )
     refute_nil(LIVE.pull(id))
     refute_nil(LIVE.stdout(id))
     refute_nil(LIVE.exit_code(id))
