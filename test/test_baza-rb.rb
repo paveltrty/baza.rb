@@ -422,6 +422,7 @@ class TestBazaRb < Minitest::Test
           BazaRb.new(host, port, '0000', ssl: false, timeout: 0.01).push('x', 'y', [])
         end.message, 'timed out in'
       )
+      t.terminate
       assert(t.join(1))
     end
   end
@@ -616,9 +617,9 @@ class TestBazaRb < Minitest::Test
         Thread.new do
           socket = server.accept
           req.parse(socket)
-          req.body
+          body = req.body
           len = req.header['content-length'].first.to_i
-          if len == req.body.size
+          if len == body.size
             socket.puts "HTTP/1.1 #{code} OK\r\nContent-Length: #{response.length}\r\n\r\n#{response}"
           else
             socket.puts "HTTP/1.1 400 Bad Request\r\n"
@@ -626,6 +627,7 @@ class TestBazaRb < Minitest::Test
           socket.close
         end
       yield BazaRb.new(host, port, '0000', **opts)
+      t.terminate
       assert(t.join(1))
     end
     req
