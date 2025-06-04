@@ -192,7 +192,7 @@ class BazaRb
   def finished?(id)
     raise 'The ID of the job is nil' if id.nil?
     raise 'The ID of the job must be a positive integer' unless id.positive?
-    finished = false
+    fin = false
     elapsed(@loog) do
       ret =
         retry_it do
@@ -203,10 +203,10 @@ class BazaRb
             )
           )
         end
-      finished = ret.body == 'yes'
-      throw :"The job ##{id} is #{finished ? '' : 'not yet '}finished at #{@host}"
+      fin = ret.body == 'yes'
+      throw :"The job ##{id} is #{'not yet ' unless fin}finished at #{@host}#{" (#{ret.body.inspect})" unless fin}"
     end
-    finished
+    fin
   end
 
   # Read and return the stdout of the job.

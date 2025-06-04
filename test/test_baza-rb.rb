@@ -33,7 +33,7 @@ class TestBazaRb < Minitest::Test
   # Live agent:
   LIVE = BazaRb.new(HOST, PORT, TOKEN, loog: Loog::VERBOSE)
 
-  def test_live_push
+  def test_live_full_cycle
     WebMock.enable_net_connect!
     skip('We are offline') unless we_are_online
     fb = Factbase.new
