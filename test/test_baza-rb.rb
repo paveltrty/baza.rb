@@ -22,7 +22,7 @@ require_relative '../lib/baza-rb'
 # License:: MIT
 class TestBazaRb < Minitest::Test
   # The token to use for testing, in Zerocracy.com:
-  TOKEN = '00000000-0000-0000-0000-000000000000'
+  TOKEN = 'ZRCY-00000000-0000-0000-0000-000000000000'
 
   # The host of the production platform:
   HOST = 'api.zerocracy.com'
