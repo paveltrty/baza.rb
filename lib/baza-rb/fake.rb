@@ -123,6 +123,17 @@ class BazaRb::Fake
     true
   end
 
+  # Find a single durable.
+  #
+  # @param [String] jname The name of the job on the server
+  # @param [String] file The path to the file to upload
+  # @return [Integer] Always returns 42 as the fake durable ID
+  def durable_find(jname, file)
+    assert_name(jname)
+    assert_file(file)
+    42
+  end
+
   # Place a single durable file on the server.
   #
   # @param [String] jname The name of the job on the server
