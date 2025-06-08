@@ -213,12 +213,14 @@ class BazaRb::Fake
   # @param [String] owner Identifier of who is taking the job
   # @param [String] zip The local file path where the job's ZIP will be saved
   # @return [Boolean] Always returns TRUE and creates an empty file
+  # rubocop:disable Naming/PredicateMethod
   def pop(owner, zip)
     assert_owner(owner)
     FileUtils.mkdir_p(File.dirname(zip))
     FileUtils.touch(zip)
     true
   end
+  # rubocop:enable Naming/PredicateMethod
 
   # Submit a ZIP archive to finish a previously popped job.
   #

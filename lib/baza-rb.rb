@@ -516,6 +516,38 @@ class BazaRb
     end
   end
 
+  # Find a durable by job name and file name.
+  #
+  # @param [String] jname The name of the job
+  # @param [String] file The file name
+  # @return [Integer, nil] The ID of the durable if found, nil if not found
+  def durable_find(jname, file)
+    raise 'The "jname" is nil' if jname.nil?
+    raise 'The "jname" may not be empty' if jname.empty?
+    raise 'The "file" is nil' if file.nil?
+    raise 'The "file" may not be empty' if file.empty?
+    id = nil
+    elapsed(@loog) do
+      ret =
+        retry_it do
+          checked(
+            Typhoeus::Request.get(
+              home.append('durables').append('find').add(jname:, file:).to_s,
+              headers:
+            ),
+            [200, 404]
+          )
+        end
+      if ret.code == 200
+        id = ret.body.to_i
+        throw :"Found durable ##{id} for job \"#{jname}\" file \"#{file}\" at #{@host}"
+      else
+        throw :"Durable not found for job \"#{jname}\" file \"#{file}\" at #{@host}"
+      end
+    end
+    id
+  end
+
   # Transfer funds to another user.
   #
   # @param [String] recipient GitHub username of the recipient (e.g. "yegor256")

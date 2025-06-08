@@ -23,16 +23,16 @@ Gem::Specification.new do |s|
   s.files = `git ls-files`.split($RS)
   s.rdoc_options = ['--charset=UTF-8']
   s.extra_rdoc_files = ['README.md', 'LICENSE.txt']
-  s.add_dependency 'backtrace', '>0'
-  s.add_dependency 'elapsed', '>0'
-  s.add_dependency 'faraday', '>0'
-  s.add_dependency 'faraday-http-cache', '>0'
-  s.add_dependency 'faraday-multipart', '>0'
-  s.add_dependency 'faraday-retry', '>0'
-  s.add_dependency 'iri', '>0'
-  s.add_dependency 'loog', '>0'
-  s.add_dependency 'retries', '~>0'
-  s.add_dependency 'tago', '~>0'
-  s.add_dependency 'typhoeus', '~>1.3'
+  s.add_dependency 'backtrace', '~>0.4'
+  s.add_dependency 'elapsed', '~>0.0'
+  s.add_dependency 'faraday', '~>2.13'
+  s.add_dependency 'faraday-http-cache', '~>2.5'
+  s.add_dependency 'faraday-multipart', '~>1.1'
+  s.add_dependency 'faraday-retry', '~>2.3'
+  s.add_dependency 'iri', '~>0.11'
+  s.add_dependency 'loog', '~>0.6'
+  s.add_dependency 'retries', '~>0.0'
+  s.add_dependency 'tago', '~>0.0'
+  s.add_dependency 'typhoeus', '~>1.4'
   s.metadata['rubygems_mfa_required'] = 'true'
 end

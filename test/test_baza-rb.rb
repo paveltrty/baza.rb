@@ -95,7 +95,10 @@ class TestBazaRb < Minitest::Test
     Dir.mktmpdir do |dir|
       file = File.join(dir, "#{fake_name}.bin")
       File.binwrite(file, 'hello')
-      id = LIVE.durable_place(fake_name, file)
+      jname = fake_name
+      refute(LIVE.durable_find(jname, File.basename(file)))
+      id = LIVE.durable_place(jname, file)
+      assert_equal(id, LIVE.durable_find(jname, File.basename(file)))
       owner = fake_name
       LIVE.durable_lock(id, owner)
       LIVE.durable_load(id, file)
@@ -517,6 +520,24 @@ class TestBazaRb < Minitest::Test
       .to_return(status: 302)
     result = fake_baza.enter('test-valve', 'test-badge', 'test reason', 123) { 'new result' }
     assert_equal('new result', result)
+  end
+
+  def test_durable_find_found
+    WebMock.disable_net_connect!
+    stub_request(:get, 'https://example.org:443/durables/find?jname=test-job&file=test.txt')
+      .with(headers: { 'X-Zerocracy-Token' => '000' })
+      .to_return(status: 200, body: '42')
+    id = fake_baza.durable_find('test-job', 'test.txt')
+    assert_equal(42, id)
+  end
+
+  def test_durable_find_not_found
+    WebMock.disable_net_connect!
+    stub_request(:get, 'https://example.org:443/durables/find?jname=test-job&file=test.txt')
+      .with(headers: { 'X-Zerocracy-Token' => '000' })
+      .to_return(status: 404)
+    id = fake_baza.durable_find('test-job', 'test.txt')
+    assert_nil(id)
   end
 
   def test_checked_with_500_error
