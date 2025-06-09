@@ -158,25 +158,7 @@ class BazaRb
     data = ''
     elapsed(@loog) do
       Tempfile.open do |file|
-        File.open(file, 'wb') do |f|
-          request = Typhoeus::Request.new(
-            home.append('pull').append("#{id}.fb").to_s,
-            method: :get,
-            headers: headers.merge(
-              'Accept' => 'application/zip, application/factbase'
-            ),
-            accept_encoding: 'gzip',
-            connecttimeout: @timeout,
-            timeout: @timeout
-          )
-          request.on_body do |chunk|
-            f.write(chunk)
-          end
-          retry_it do
-            request.run
-          end
-          checked(request.response)
-        end
+        download(home.append('pull').append("#{id}.fb").to_s, file.path)
         data = File.binread(file)
         throw :"Pulled #{data.bytesize} bytes of job ##{id} factbase at #{@host}"
       end
@@ -446,26 +428,8 @@ class BazaRb
     raise 'The ID of the durable is nil' if id.nil?
     raise 'The ID of the durable must be a positive integer' unless id.positive?
     raise 'The "file" of the durable is nil' if file.nil?
-    FileUtils.mkdir_p(File.dirname(file))
     elapsed(@loog) do
-      File.open(file, 'wb') do |f|
-        request = Typhoeus::Request.new(
-          home.append('durables').append(id).to_s,
-          method: :get,
-          headers: headers.merge(
-            'Accept' => 'application/octet-stream'
-          ),
-          connecttimeout: @timeout,
-          timeout: @timeout
-        )
-        request.on_body do |chunk|
-          f.write(chunk)
-        end
-        retry_it do
-          request.run
-        end
-        checked(request.response)
-      end
+      download(home.append('durables').append(id).to_s, file)
       throw :"Durable ##{id} loaded #{File.size(file)} bytes from #{@host}"
     end
   end
@@ -639,55 +603,28 @@ class BazaRb
   # @return [Boolean] TRUE if a job was successfully popped, FALSE if queue is empty
   # @raise [ServerFailure] If the pop operation fails
   def pop(owner, zip)
-    raise 'The "zip" of the job is nil' if zip.nil?
     success = false
-    FileUtils.rm_f(zip)
-    job = nil
     elapsed(@loog) do
-      File.open(zip, 'wb+') do |f|
-        loop do
-          uri = home.append('pop').add(owner:)
-          uri = uri.add(job:) if job
-          request = Typhoeus::Request.new(
-            uri.to_s,
-            method: :get,
-            headers: headers.merge(
-              'Accept' => 'application/octet-stream',
-              'Range' => "bytes=#{f.size}-"
+      uri = home.append('pop').add(owner:)
+      ret =
+        retry_it do
+          checked(
+            Typhoeus::Request.get(
+              uri.to_s,
+              headers:
             ),
-            connecttimeout: @timeout,
-            timeout: @timeout
+            [200, 204, 206]
           )
-          request.on_body do |chunk|
-            f.write(chunk)
-          end
-          retry_it do
-            request.run
-          end
-          ret = request.response
-          checked(ret, [200, 204, 206])
-          success = ret.code != 204
-          break unless ret.code == 206
-          job = ret.headers['X-Zerocracy-JobId']
-          raise 'Job ID is not returned in X-Zerocracy-JobId' if job.nil?
-          raise "Job ID returned in X-Zerocracy-JobId is not valid (#{job.inspect})" unless job.match?(/^[0-9]+$/)
-          _, v = ret.headers['Content-Range'].split
-          range, total = v.split('/')
-          raise "Total size is not valid (#{total.inspect})" unless total.match?(/^\*|[0-9]+$/)
-          b, e = range.split('-')
-          raise "Range is not valid (#{range.inspect})" unless e.match?(/^[0-9]+$/)
-          len = ret.headers['Content-Length'].to_i
-          unless len.zero?
-            raise "Range size (#{range.inspect}) is not equal to Content-Length" unless len - 1 == e.to_i - b.to_i
-            raise "Range end (#{range.inspect}) is not equal to #{f.size}" if e.to_i != f.size - 1
-          end
-          break if e.to_i == total.to_i - 1
         end
-      end
-      unless success
+      if ret.code == 204
         FileUtils.rm_f(zip)
-        throw :"Nothing to pop at #{@host}"
+        throw :"Nothing to pop at #{uri}"
       end
+      job = ret.headers['X-Zerocracy-JobId']
+      raise 'Job ID is not returned in X-Zerocracy-JobId' if job.nil?
+      raise "Job ID returned in X-Zerocracy-JobId is not valid (#{job.inspect})" unless job.match?(/^[0-9]+$/)
+      download(uri.add(job:), zip)
+      success = true
       throw :"Popped #{File.size(zip)} bytes in ZIP archive at #{@host}"
     end
     success
@@ -882,5 +819,50 @@ class BazaRb
     end
     @loog.error(msg)
     raise ServerFailure, msg
+  end
+
+  # Download file via GET, in ranges.
+  # @param [String] uri The URI
+  # @param [String] file The path to save to
+  def download(uri, file)
+    raise 'The "file" is nil' if file.nil?
+    FileUtils.mkdir_p(File.dirname(file))
+    elapsed(@loog) do
+      File.open(file, 'wb+') do |f|
+        loop do
+          request = Typhoeus::Request.new(
+            uri.to_s,
+            method: :get,
+            headers: headers.merge(
+              'Accept' => 'application/octet-stream',
+              'Range' => "bytes=#{f.size}-"
+            ),
+            connecttimeout: @timeout,
+            timeout: @timeout
+          )
+          request.on_body do |chunk|
+            f.write(chunk)
+          end
+          retry_it do
+            request.run
+          end
+          ret = request.response
+          checked(ret, [200, 206])
+          break if ret.code == 200
+          _, v = ret.headers['Content-Range'].split
+          range, total = v.split('/')
+          raise "Total size is not valid (#{total.inspect})" unless total.match?(/^\*|[0-9]+$/)
+          b, e = range.split('-')
+          raise "Range is not valid (#{range.inspect})" unless e.match?(/^[0-9]+$/)
+          len = ret.headers['Content-Length'].to_i
+          unless len.zero?
+            raise "Range size (#{range.inspect}) is not equal to Content-Length" unless len - 1 == e.to_i - b.to_i
+            raise "Range end (#{range.inspect}) is not equal to #{f.size}" if e.to_i != f.size - 1
+          end
+          break if e.to_i == total.to_i - 1
+        end
+      end
+      throw :"Downloaded #{File.size(file)} bytes from #{uri}"
+    end
   end
 end
