@@ -370,28 +370,34 @@ class BazaRb
     raise 'The "file" of the durable is nil' if file.nil?
     raise "The file '#{file}' is absent" unless File.exist?(file)
     id = nil
-    elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.post(
-              home.append('durables').append('place').to_s,
-              body: {
-                '_csrf' => csrf,
-                'jname' => jname,
-                'file' => File.basename(file),
-                'zip' => File.open(file, 'rb')
-              },
-              headers:,
-              connecttimeout: @timeout,
-              timeout: @timeout
-            ),
-            302
-          )
-        end
-      id = ret.headers['X-Zerocracy-DurableId'].to_i
-      throw :"Durable ##{id} (#{file}) placed for job \"#{jname}\" at #{@host}"
+    Tempfile.open do |f|
+      File.write(f.path, 'placeholder')
+      elapsed(@loog) do
+        ret =
+          retry_it do
+            checked(
+              Typhoeus::Request.post(
+                home.append('durables').append('place').to_s,
+                body: {
+                  '_csrf' => csrf,
+                  'jname' => jname,
+                  'file' => File.basename(file),
+                  'zip' => File.open(f, 'rb')
+                },
+                headers:,
+                connecttimeout: @timeout,
+                timeout: @timeout
+              ),
+              302
+            )
+          end
+        id = ret.headers['X-Zerocracy-DurableId'].to_i
+        throw :"Durable ##{id} (#{file}) placed for job \"#{jname}\" at #{@host}"
+      end
     end
+    durable_lock(id, user_agent)
+    durable_save(id, file)
+    durable_unlock(id, user_agent)
     id
   end
 
@@ -613,7 +619,7 @@ class BazaRb
               uri.to_s,
               headers:
             ),
-            [200, 204, 206]
+            [204, 302]
           )
         end
       if ret.code == 204
@@ -731,9 +737,13 @@ class BazaRb
 
   private
 
+  def user_agent
+    "baza.rb #{BazaRb::VERSION}"
+  end
+
   def headers
     {
-      'User-Agent' => "baza.rb #{BazaRb::VERSION}",
+      'User-Agent' => user_agent,
       'Connection' => 'close',
       'X-Zerocracy-Token' => @token
     }
@@ -863,6 +873,47 @@ class BazaRb
         end
       end
       throw :"Downloaded #{File.size(file)} bytes from #{uri}"
+    end
+  end
+
+  # Upload file via PUT, in ranges.
+  # @param [String] uri The URI
+  # @param [String] file The path to save to
+  # @param [Hash] headers Hash of HTTP headers
+  def upload(uri, file, headers = {})
+    raise 'The "file" is nil' if file.nil?
+    raise 'The "file" does not exist' unless File.exist?(file)
+    params = {
+      connecttimeout: @timeout,
+      timeout: @timeout,
+      body: data,
+      headers: headers.merge(
+        'Content-Type' => 'application/octet-stream'
+      )
+    }
+    max = 1_000_000
+    chunk = 0
+    elapsed(@loog) do
+      params[:headers]['X-Zerocracy-Chunk'] = chunk.to_s
+      loop do
+        File.open(file, 'rb') do |f|
+          f.seek(max * chunk)
+          data = f.read(max)
+          data = '' if data.nil?
+          params[:headers]['Content-Length'] = data.bytesize
+          retry_it do
+            checked(
+              Typhoeus::Request.put(
+                uri.to_s,
+                @compress ? zipped(params) : params
+              )
+            )
+          end
+          break if data.empty?
+        end
+        chunk += 1
+      end
+      throw :"Uploaded #{File.size(file)} bytes to #{uri} in #{chunk + 1} chunk(s)"
     end
   end
 end

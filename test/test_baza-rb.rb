@@ -94,7 +94,7 @@ class TestBazaRb < Minitest::Test
     skip('We are offline') unless we_are_online
     Dir.mktmpdir do |dir|
       file = File.join(dir, "#{fake_name}.bin")
-      File.binwrite(file, 'hello')
+      File.binwrite(file, 'hello, world!' * 100_000)
       jname = fake_name
       refute(LIVE.durable_find(jname, File.basename(file)))
       id = LIVE.durable_place(jname, file)
@@ -179,6 +179,11 @@ class TestBazaRb < Minitest::Test
     stub_request(:post, 'https://example.org/durables/place').to_return(
       status: 302, headers: { 'X-Zerocracy-DurableId' => '42' }
     )
+    stub_request(:get, %r{https://example\.org/durables/42/lock})
+      .to_return(status: 302)
+    stub_request(:get, %r{https://example\.org/durables/42/unlock})
+      .to_return(status: 302)
+    stub_request(:put, 'https://example.org/durables/42').to_return(status: 200)
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'test.bin')
       File.binwrite(file, 'hello')
@@ -212,6 +217,13 @@ class TestBazaRb < Minitest::Test
     job = 4242
     stub_request(:get, 'https://example.org/pop')
       .with(query: { owner: })
+      .to_return(
+        status: 302,
+        headers: { 'X-Zerocracy-JobId' => job },
+        body: ''
+      )
+    stub_request(:get, 'https://example.org/pop')
+      .with(query: { job: })
       .to_return(
         status: 206,
         headers: { 'Content-Range' => 'bytes 0-0/*', 'X-Zerocracy-JobId' => job, 'Content-Length' => 0 },
