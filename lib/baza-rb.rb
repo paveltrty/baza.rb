@@ -715,12 +715,17 @@ class BazaRb
     raise ServerFailure, msg
   end
 
+  # Make a GET request.
+  # @param [String] uri The URI
+  # @param [Array<Integer>] allowed List of allowed HTTP response codes
   def get(uri, allowed = [200])
     retry_it do
       checked(
         Typhoeus::Request.get(
           uri.to_s,
-          headers:
+          headers:,
+          connecttimeout: @timeout,
+          timeout: @timeout
         ),
         allowed
       )
