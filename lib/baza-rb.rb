@@ -210,20 +210,11 @@ class BazaRb
     raise 'The "name" of the job may not be empty' if name.empty?
     raise 'The "owner" of the lock is nil' if owner.nil?
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.post(
-              home.append('lock').append(name).to_s,
-              headers:,
-              body: {
-                '_csrf' => csrf,
-                'owner' => owner
-              }
-            ),
-            [302, 409]
-          )
-        end
+      ret = post(
+        home.append('lock').append(name),
+        { 'owner' => owner },
+        [302, 409]
+      )
       throw :"Job name '#{name}' locked at #{@host}" if ret.code == 302
       raise "Failed to lock '#{name}' job at #{@host}, it's already locked"
     end
@@ -239,19 +230,10 @@ class BazaRb
     raise 'The "owner" of the lock is nil' if owner.nil?
     raise 'The "owner" of the lock may not be empty' if owner.empty?
     elapsed(@loog) do
-      retry_it do
-        checked(
-          Typhoeus::Request.post(
-            home.append('unlock').append(name).to_s,
-            headers:,
-            body: {
-              '_csrf' => csrf,
-              'owner' => owner
-            }
-          ),
-          302
-        )
-      end
+      post(
+        home.append('unlock').append(name),
+        { 'owner' => owner }
+      )
       throw :"Job name '#{name}' unlocked at #{@host}"
     end
   end
@@ -304,24 +286,14 @@ class BazaRb
     Tempfile.open do |f|
       File.write(f.path, 'placeholder')
       elapsed(@loog) do
-        ret =
-          retry_it do
-            checked(
-              Typhoeus::Request.post(
-                home.append('durables').append('place').to_s,
-                body: {
-                  '_csrf' => csrf,
-                  'jname' => jname,
-                  'file' => File.basename(file),
-                  'zip' => File.open(f, 'rb')
-                },
-                headers:,
-                connecttimeout: @timeout,
-                timeout: @timeout
-              ),
-              302
-            )
-          end
+        ret = post(
+          home.append('durables').append('place'),
+          {
+            'jname' => jname,
+            'file' => File.basename(file),
+            'zip' => File.open(f, 'rb')
+          }
+        )
         id = ret.headers['X-Zerocracy-DurableId'].to_i
         throw :"Durable ##{id} (#{file}) placed for job \"#{jname}\" at #{@host}"
       end
@@ -372,19 +344,10 @@ class BazaRb
     raise 'The "owner" of the lock is nil' if owner.nil?
     raise 'The "owner" of the lock may not be empty' if owner.empty?
     elapsed(@loog) do
-      retry_it do
-        checked(
-          Typhoeus::Request.post(
-            home.append('durables').append(id).append('lock').to_s,
-            headers:,
-            body: {
-              '_csrf' => csrf,
-              'owner' => owner
-            }
-          ),
-          302
-        )
-      end
+      post(
+        home.append('durables').append(id).append('lock'),
+        { 'owner' => owner }
+      )
       throw :"Durable ##{id} locked at #{@host}"
     end
   end
@@ -399,19 +362,10 @@ class BazaRb
     raise 'The "owner" of the lock is nil' if owner.nil?
     raise 'The "owner" of the lock may not be empty' if owner.empty?
     elapsed(@loog) do
-      retry_it do
-        checked(
-          Typhoeus::Request.post(
-            home.append('durables').append(id).append('unlock').to_s,
-            headers:,
-            body: {
-              '_csrf' => csrf,
-              'owner' => owner
-            }
-          ),
-          302
-        )
-      end
+      post(
+        home.append('durables').append(id).append('unlock'),
+        { 'owner' => owner }
+      )
       throw :"Durable ##{id} unlocked at #{@host}"
     end
   end
@@ -454,26 +408,16 @@ class BazaRb
     raise 'The "summary" is nil' if summary.nil?
     id = nil
     body = {
-      '_csrf' => csrf,
       'human' => recipient,
       'amount' => format('%0.6f', amount),
       'summary' => summary
     }
     body['job'] = job unless job.nil?
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.post(
-              home.append('account').append('transfer').to_s,
-              body:,
-              headers:,
-              connecttimeout: @timeout,
-              timeout: @timeout
-            ),
-            302
-          )
-        end
+      ret = post(
+        home.append('account').append('transfer'),
+        body
+      )
       id = ret.headers['X-Zerocracy-ReceiptId'].to_i
       throw :"Transferred Ƶ#{format('%0.6f', amount)} to @#{recipient} at #{@host}"
     end
@@ -497,25 +441,15 @@ class BazaRb
     raise 'The "summary" is nil' if summary.nil?
     id = nil
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.post(
-              home.append('account').append('fee').to_s,
-              body: {
-                '_csrf' => csrf,
-                'tab' => tab,
-                'amount' => format('%0.6f', amount),
-                'summary' => summary,
-                'job' => job.to_s
-              },
-              headers:,
-              connecttimeout: @timeout,
-              timeout: @timeout
-            ),
-            302
-          )
-        end
+      ret = post(
+        home.append('account').append('fee'),
+        {
+          'tab' => tab,
+          'amount' => format('%0.6f', amount),
+          'summary' => summary,
+          'job' => job.to_s
+        }
+      )
       id = ret.headers['X-Zerocracy-ReceiptId'].to_i
       throw :"Fee Ƶ#{format('%0.6f', amount)} paid at #{@host}"
     end
@@ -584,19 +518,14 @@ class BazaRb
         r = yield
         uri = home.append('valves').append('add')
         uri = uri.add(job:) unless job.nil?
-        checked(
-          Typhoeus::Request.post(
-            uri.to_s,
-            body: {
-              '_csrf' => csrf,
-              'name' => name,
-              'badge' => badge,
-              'why' => why,
-              'result' => r.to_s
-            },
-            headers:
-          ),
-          302
+        post(
+          uri,
+          {
+            'name' => name,
+            'badge' => badge,
+            'why' => why,
+            'result' => r.to_s
+          }
         )
         r
       end
@@ -723,6 +652,24 @@ class BazaRb
       checked(
         Typhoeus::Request.get(
           uri.to_s,
+          headers:,
+          connecttimeout: @timeout,
+          timeout: @timeout
+        ),
+        allowed
+      )
+    end
+  end
+
+  # Make a POST request.
+  # @param [String] uri The URI
+  # @param [Array<Integer>] allowed List of allowed HTTP response codes
+  def post(uri, params, allowed = [302])
+    retry_it do
+      checked(
+        Typhoeus::Request.post(
+          uri.to_s,
+          body: params.merge('_csrf' => csrf),
           headers:,
           connecttimeout: @timeout,
           timeout: @timeout
