@@ -562,14 +562,18 @@ class BazaRb
     }
   end
 
+  def unzip(data)
+    io = StringIO.new(data)
+    gz = Zlib::GzipReader.new(io)
+    gz.read
+  end
+
   def zipped(params)
-    body =
-      (+'').tap do |result|
-        io = StringIO.new(result)
-        gz = Zlib::GzipWriter.new(io)
-        gz.write(params.fetch(:body))
-        gz.close
-      end
+    io = StringIO.new
+    gz = Zlib::GzipWriter.new(io)
+    gz.write(params.fetch(:body))
+    gz.close
+    body = io.string
     headers = params
       .fetch(:headers)
       .merge(
@@ -682,40 +686,42 @@ class BazaRb
   def download(uri, file)
     FileUtils.mkdir_p(File.dirname(file))
     elapsed(@loog) do
-      File.open(file, 'wb+') do |f|
-        loop do
-          request = Typhoeus::Request.new(
-            uri.to_s,
-            method: :get,
-            headers: headers.merge(
-              'Accept' => 'application/octet-stream',
-              'Accept-Encoding' => 'gzip',
-              'Range' => "bytes=#{f.size}-"
-            ),
-            connecttimeout: @timeout,
-            timeout: @timeout
-          )
-          request.on_body do |chunk|
-            f.write(chunk)
-          end
-          retry_it do
-            request.run
-          end
-          ret = request.response
-          checked(ret, [200, 206])
-          break if ret.code == 200
-          _, v = ret.headers['Content-Range'].split
-          range, total = v.split('/')
-          raise "Total size is not valid (#{total.inspect})" unless total.match?(/^\*|[0-9]+$/)
-          b, e = range.split('-')
-          raise "Range is not valid (#{range.inspect})" unless e.match?(/^[0-9]+$/)
-          len = ret.headers['Content-Length'].to_i
-          unless len.zero?
-            raise "Range size (#{range.inspect}) is not equal to Content-Length" unless len - 1 == e.to_i - b.to_i
-            raise "Range end (#{range.inspect}) is not equal to #{f.size}" if e.to_i != f.size - 1
-          end
-          break if e.to_i == total.to_i - 1
+      pos = 0
+      loop do
+        request = Typhoeus::Request.new(
+          uri.to_s,
+          method: :get,
+          headers: headers.merge(
+            'Accept' => 'application/octet-stream',
+            'Accept-Encoding' => 'gzip',
+            'Range' => "bytes=#{pos}-"
+          ),
+          connecttimeout: @timeout,
+          timeout: @timeout
+        )
+        chunk = nil
+        request.on_body do |data|
+          chunk = data
         end
+        retry_it do
+          request.run
+        end
+        ret = request.response
+        checked(ret, [200, 206])
+        chunk = unzip(chunk) if ret.headers['Content-Encoding'] == 'gzip'
+        File.open(file, 'ab') do |f|
+          f.write(chunk)
+        end
+        break if ret.code == 200
+        _, v = ret.headers['Content-Range'].split
+        range, total = v.split('/')
+        raise "Total size is not valid (#{total.inspect})" unless total.match?(/^\*|[0-9]+$/)
+        b, e = range.split('-')
+        raise "Range is not valid (#{range.inspect})" unless e.match?(/^[0-9]+$/)
+        len = ret.headers['Content-Length'].to_i
+        pos = e.to_i
+        pos += 1 unless len.zero?
+        break if e.to_i == total.to_i - 1
       end
       throw :"Downloaded #{File.size(file)} bytes from #{uri}"
     end

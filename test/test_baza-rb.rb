@@ -224,7 +224,7 @@ class TestBazaRb < Minitest::Test
       .with(query: { job: })
       .to_return(
         status: 206,
-        headers: { 'Content-Range' => 'bytes 0-0/*', 'X-Zerocracy-JobId' => job, 'Content-Length' => 0 },
+        headers: { 'Content-Range' => 'bytes 0-0/*', 'Content-Length' => 0 },
         body: ''
       )
     bin = nil
@@ -238,7 +238,6 @@ class TestBazaRb < Minitest::Test
           status: 206,
           headers: {
             'Content-Range' => "bytes 0-7/#{bin.size}",
-            'X-Zerocracy-JobId' => job,
             'Content-Length' => 8
           },
           body: bin[0..7]
@@ -250,7 +249,6 @@ class TestBazaRb < Minitest::Test
           status: 206,
           headers: {
             'Content-Range' => "bytes 8-#{bin.size - 1}/#{bin.size}",
-            'X-Zerocracy-JobId' => job,
             'Content-Length' => bin.size - 8
           },
           body: bin[8..]
@@ -315,7 +313,7 @@ class TestBazaRb < Minitest::Test
   def test_simple_pull
     WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org/pull/333.fb').to_return(
-      status: 200, body: 'hello, world!'
+      status: 200, body: 'hello, world!', headers: {}
     )
     assert(
       fake_baza.pull(333).start_with?('hello')
@@ -458,7 +456,7 @@ class TestBazaRb < Minitest::Test
       file = File.join(dir, 'loaded.txt')
       stub_request(:get, 'https://example.org:443/durables/42')
         .with(headers: { 'X-Zerocracy-Token' => '000' })
-        .to_return(status: 200, body: 'loaded content')
+        .to_return(status: 200, body: 'loaded content', headers: {})
       fake_baza.durable_load(42, file)
       assert_equal('loaded content', File.read(file))
     end
