@@ -563,7 +563,13 @@ class BazaRb
   end
 
   def zipped(params)
-    body = gzip(params.fetch(:body))
+    body =
+      (+'').tap do |result|
+        io = StringIO.new(result)
+        gz = Zlib::GzipWriter.new(io)
+        gz.write(params.fetch(:body))
+        gz.close
+      end
     headers = params
       .fetch(:headers)
       .merge(
@@ -574,15 +580,6 @@ class BazaRb
         }
       )
     params.merge(body:, headers:)
-  end
-
-  def gzip(data)
-    (+'').tap do |result|
-      io = StringIO.new(result)
-      gz = Zlib::GzipWriter.new(io)
-      gz.write(data)
-      gz.close
-    end
   end
 
   def home
@@ -692,6 +689,7 @@ class BazaRb
             method: :get,
             headers: headers.merge(
               'Accept' => 'application/octet-stream',
+              'Accept-Encoding' => 'gzip',
               'Range' => "bytes=#{f.size}-"
             ),
             connecttimeout: @timeout,
