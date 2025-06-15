@@ -40,7 +40,7 @@ class TestBazaRb < Minitest::Test
     fb.insert.foo = 'test-' * 10_000
     fb.insert
     n = fake_name
-    assert_predicate(LIVE.push(n, fb.export, []), :positive?)
+    LIVE.push(n, fb.export, [])
     assert(LIVE.name_exists?(n))
     assert_predicate(LIVE.recent(n), :positive?)
     id = LIVE.recent(n)
@@ -86,15 +86,16 @@ class TestBazaRb < Minitest::Test
     fb.insert.foo = 'test-' * 10_000
     fb.insert
     baza = BazaRb.new(HOST, PORT, TOKEN, compress: false)
-    assert_predicate(baza.push(fake_name, fb.export, []), :positive?)
+    baza.push(fake_name, fb.export, [])
   end
 
   def test_live_durable_lock_unlock
     WebMock.enable_net_connect!
     skip('We are offline') unless we_are_online
     Dir.mktmpdir do |dir|
-      file = File.join(dir, "#{fake_name}.bin")
-      File.binwrite(file, 'hello, world!' * 100_000)
+      file = File.join(dir, 'before.bin')
+      before = 'hello, Джеф!' * 10
+      File.binwrite(file, before)
       jname = fake_name
       refute(LIVE.durable_find(jname, File.basename(file)))
       id = LIVE.durable_place(jname, file)
@@ -102,7 +103,12 @@ class TestBazaRb < Minitest::Test
       owner = fake_name
       LIVE.durable_lock(id, owner)
       LIVE.durable_load(id, file)
+      assert_equal(before, File.binread(file).force_encoding('UTF-8'))
+      after = 'привет, друг!'
+      File.binwrite(file, after)
       LIVE.durable_save(id, file)
+      LIVE.durable_load(id, file)
+      assert_equal(after, File.binread(file).force_encoding('UTF-8'))
       LIVE.durable_unlock(id, owner)
     end
   end
@@ -169,25 +175,36 @@ class TestBazaRb < Minitest::Test
 
   def test_unlocks_job_by_name
     WebMock.disable_net_connect!
-    stub_request(:get, 'https://example.org/unlock/foo?owner=x').to_return(status: 302)
+    stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')
+    stub_request(:post, %r{https://example.org/unlock/foo}).to_return(status: 302)
     assert(fake_baza.unlock('foo', 'x'))
   end
 
   def test_durable_place
     WebMock.disable_net_connect!
-    stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')
-    stub_request(:post, 'https://example.org/durables/place').to_return(
-      status: 302, headers: { 'X-Zerocracy-DurableId' => '42' }
-    )
-    stub_request(:get, %r{https://example\.org/durables/42/lock})
-      .to_return(status: 302)
-    stub_request(:get, %r{https://example\.org/durables/42/unlock})
-      .to_return(status: 302)
-    stub_request(:put, 'https://example.org/durables/42').to_return(status: 200)
-    Dir.mktmpdir do |dir|
-      file = File.join(dir, 'test.bin')
-      File.binwrite(file, 'hello')
-      assert_equal(42, fake_baza.durable_place('simple', file))
+    [fake_baza(compress: true), fake_baza(compress: false)].each do |baza|
+      stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')
+      stub_request(:post, 'https://example.org/durables/place').to_return(
+        status: 302, headers: { 'X-Zerocracy-DurableId' => '42' }
+      )
+      stub_request(:post, %r{https://example\.org/durables/42/lock})
+        .to_return(status: 302)
+      stub_request(:post, %r{https://example\.org/durables/42/unlock})
+        .to_return(status: 302)
+      stub_request(:put, 'https://example.org/durables/42')
+        .with(headers: { 'X-Zerocracy-Chunk' => '0' })
+        .to_return(status: 200)
+      stub_request(:put, 'https://example.org/durables/42')
+        .with(headers: { 'X-Zerocracy-Chunk' => '1' })
+        .to_return(status: 200)
+      stub_request(:put, 'https://example.org/durables/42')
+        .with(headers: { 'X-Zerocracy-Chunk' => '2' })
+        .to_return(status: 200)
+      Dir.mktmpdir do |dir|
+        file = File.join(dir, 'test.bin')
+        File.binwrite(file, 'hello, world!')
+        assert_equal(42, baza.durable_place('simple', file, chunk_size: 8))
+      end
     end
   end
 
@@ -196,10 +213,7 @@ class TestBazaRb < Minitest::Test
     stub_request(:put, 'https://example.org/push/simple').to_return(
       status: 200, body: '42'
     )
-    assert_equal(
-      42,
-      fake_baza.push('simple', 'hello, world!', [])
-    )
+    fake_baza.push('simple', 'hello, world!', [])
   end
 
   def test_simple_pop_with_no_job_found
@@ -226,7 +240,7 @@ class TestBazaRb < Minitest::Test
       .with(query: { job: })
       .to_return(
         status: 206,
-        headers: { 'Content-Range' => 'bytes 0-0/*', 'X-Zerocracy-JobId' => job, 'Content-Length' => 0 },
+        headers: { 'Content-Range' => 'bytes 0-0/*', 'Content-Length' => 0 },
         body: ''
       )
     bin = nil
@@ -240,7 +254,6 @@ class TestBazaRb < Minitest::Test
           status: 206,
           headers: {
             'Content-Range' => "bytes 0-7/#{bin.size}",
-            'X-Zerocracy-JobId' => job,
             'Content-Length' => 8
           },
           body: bin[0..7]
@@ -252,7 +265,6 @@ class TestBazaRb < Minitest::Test
           status: 206,
           headers: {
             'Content-Range' => "bytes 8-#{bin.size - 1}/#{bin.size}",
-            'X-Zerocracy-JobId' => job,
             'Content-Length' => bin.size - 8
           },
           body: bin[8..]
@@ -317,7 +329,7 @@ class TestBazaRb < Minitest::Test
   def test_simple_pull
     WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org/pull/333.fb').to_return(
-      status: 200, body: 'hello, world!'
+      status: 200, body: 'hello, world!', headers: {}
     )
     assert(
       fake_baza.pull(333).start_with?('hello')
@@ -326,13 +338,15 @@ class TestBazaRb < Minitest::Test
 
   def test_simple_lock_success
     WebMock.disable_net_connect!
-    stub_request(:get, 'https://example.org/lock/name?owner=owner').to_return(status: 302)
+    stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')
+    stub_request(:post, %r{https://example.org/lock/name}).to_return(status: 302)
     fake_baza.lock('name', 'owner')
   end
 
   def test_simple_lock_failure
     WebMock.disable_net_connect!
-    stub_request(:get, 'https://example.org/lock/name?owner=owner').to_return(status: 409)
+    stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')
+    stub_request(:post, %r{https://example.org/lock/name}).to_return(status: 409)
     assert_raises(StandardError) do
       fake_baza.lock('name', 'owner')
     end
@@ -446,7 +460,7 @@ class TestBazaRb < Minitest::Test
       file = File.join(dir, 'test.txt')
       File.write(file, 'test content')
       stub_request(:put, 'https://example.org:443/durables/42')
-        .with(headers: { 'X-Zerocracy-Token' => '000' }, body: 'test content')
+        .with(headers: { 'X-Zerocracy-Token' => '000' })
         .to_return(status: 200)
       fake_baza.durable_save(42, file)
     end
@@ -458,7 +472,7 @@ class TestBazaRb < Minitest::Test
       file = File.join(dir, 'loaded.txt')
       stub_request(:get, 'https://example.org:443/durables/42')
         .with(headers: { 'X-Zerocracy-Token' => '000' })
-        .to_return(status: 200, body: 'loaded content')
+        .to_return(status: 200, body: 'loaded content', headers: {})
       fake_baza.durable_load(42, file)
       assert_equal('loaded content', File.read(file))
     end
@@ -466,7 +480,8 @@ class TestBazaRb < Minitest::Test
 
   def test_durable_lock
     WebMock.disable_net_connect!
-    stub_request(:get, 'https://example.org:443/durables/42/lock?owner=test-owner')
+    stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')
+    stub_request(:post, %r{https://example.org:443/durables/42/lock})
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 302)
     fake_baza.durable_lock(42, 'test-owner')
@@ -474,7 +489,8 @@ class TestBazaRb < Minitest::Test
 
   def test_durable_unlock
     WebMock.disable_net_connect!
-    stub_request(:get, 'https://example.org:443/durables/42/unlock?owner=test-owner')
+    stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')
+    stub_request(:post, %r{https://example.org:443/durables/42/unlock})
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 302)
     fake_baza.durable_unlock(42, 'test-owner')
@@ -630,8 +646,7 @@ class TestBazaRb < Minitest::Test
         body: 'data'
       )
       .to_return(status: 200, body: '123')
-    id = baza.push('test', 'data', [])
-    assert_equal(123, id)
+    baza.push('test', 'data', [])
   end
 
   private
@@ -663,8 +678,8 @@ class TestBazaRb < Minitest::Test
     req
   end
 
-  def fake_baza
-    BazaRb.new('example.org', 443, '000', loog: Loog::NULL)
+  def fake_baza(compress: true)
+    BazaRb.new('example.org', 443, '000', loog: Loog::NULL, compress:)
   end
 
   def fake_name

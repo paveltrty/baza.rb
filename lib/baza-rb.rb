@@ -68,15 +68,7 @@ class BazaRb
   def whoami
     nick = nil
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.get(
-              home.append('whoami').to_s,
-              headers:
-            )
-          )
-        end
+      ret = get(home.append('whoami'))
       nick = ret.body
       throw :"I know that I am @#{nick}, at #{@host}"
     end
@@ -90,15 +82,7 @@ class BazaRb
   def balance
     z = nil
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.get(
-              home.append('account').append('balance').to_s,
-              headers:
-            )
-          )
-        end
+      ret = get(home.append('account').append('balance'))
       z = ret.body.to_f
       throw :"The balance is Ƶ#{z}, at #{@host}"
     end
@@ -110,41 +94,27 @@ class BazaRb
   # @param [String] name The unique name of the job on the server
   # @param [String] data The binary data to push to the server (factbase content)
   # @param [Array<String>] meta List of metadata strings to attach to the job
-  # @return [Integer] Job ID assigned by the server
+  # @param [Integer] chunk_size Maximum size of one chunk
   # @raise [ServerFailure] If the push operation fails
-  def push(name, data, meta)
+  def push(name, data, meta, chunk_size: 1_000_000)
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
     raise 'The "data" of the job is nil' if data.nil?
     raise 'The "meta" of the job is nil' if meta.nil?
-    id = 0
-    hdrs = headers.merge(
-      'Content-Type' => 'application/octet-stream',
-      'Content-Length' => data.bytesize
-    )
-    unless meta.empty?
-      hdrs = hdrs.merge('X-Zerocracy-Meta' => meta.map { |v| Base64.encode64(v).delete("\n") }.join(' '))
-    end
-    params = {
-      connecttimeout: @timeout,
-      timeout: @timeout,
-      body: data,
-      headers: hdrs
-    }
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.put(
-              home.append('push').append(name).to_s,
-              @compress ? zipped(params) : params
-            )
-          )
-        end
-      id = ret.body.to_i
-      throw :"Pushed #{data.bytesize} bytes to #{@host}, job ID is ##{id}"
+      Tempfile.open do |file|
+        File.binwrite(file.path, data)
+        upload(
+          home.append('push').append(name),
+          file.path,
+          headers.merge(
+            'X-Zerocracy-Meta' => meta.map { |v| Base64.encode64(v).delete("\n") }.join(' ')
+          ),
+          chunk_size:
+        )
+      end
+      throw :"Pushed #{data.bytesize} bytes to #{@host}"
     end
-    id
   end
 
   # Pull factbase from the server for a specific job.
@@ -158,7 +128,7 @@ class BazaRb
     data = ''
     elapsed(@loog) do
       Tempfile.open do |file|
-        download(home.append('pull').append("#{id}.fb").to_s, file.path)
+        download(home.append('pull').append("#{id}.fb"), file.path)
         data = File.binread(file)
         throw :"Pulled #{data.bytesize} bytes of job ##{id} factbase at #{@host}"
       end
@@ -176,15 +146,7 @@ class BazaRb
     raise 'The ID of the job must be a positive integer' unless id.positive?
     fin = false
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.get(
-              home.append('finished').append(id).to_s,
-              headers:
-            )
-          )
-        end
+      ret = get(home.append('finished').append(id))
       fin = ret.body == 'yes'
       throw :"The job ##{id} is #{'not yet ' unless fin}finished at #{@host}#{" (#{ret.body.inspect})" unless fin}"
     end
@@ -195,20 +157,13 @@ class BazaRb
   #
   # @param [Integer] id The ID of the job on the server
   # @return [String] The stdout, as a text
+  # @raise [ServerFailure] If the job doesn't exist or retrieval fails
   def stdout(id)
     raise 'The ID of the job is nil' if id.nil?
     raise 'The ID of the job must be a positive integer' unless id.positive?
     stdout = ''
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.get(
-              home.append('stdout').append("#{id}.txt").to_s,
-              headers:
-            )
-          )
-        end
+      ret = get(home.append('stdout').append("#{id}.txt"))
       stdout = ret.body
       throw :"The stdout of the job ##{id} has #{stdout.split("\n").count} lines"
     end
@@ -219,20 +174,13 @@ class BazaRb
   #
   # @param [Integer] id The ID of the job on the server
   # @return [Integer] The exit code
+  # @raise [ServerFailure] If the job doesn't exist or retrieval fails
   def exit_code(id)
     raise 'The ID of the job is nil' if id.nil?
     raise 'The ID of the job must be a positive integer' unless id.positive?
     code = 0
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.get(
-              home.append('exit').append("#{id}.txt").to_s,
-              headers:
-            )
-          )
-        end
+      ret = get(home.append('exit').append("#{id}.txt"))
       code = ret.body.to_i
       throw :"The exit code of the job ##{id} is #{code}"
     end
@@ -243,20 +191,13 @@ class BazaRb
   #
   # @param [Integer] id The ID of the job on the server
   # @return [String] The verdict
+  # @raise [ServerFailure] If the job doesn't exist or retrieval fails
   def verified(id)
     raise 'The ID of the job is nil' if id.nil?
     raise 'The ID of the job must be a positive integer' unless id.positive?
     verdict = ''
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.get(
-              home.append('jobs').append(id).append('verified.txt').to_s,
-              headers:
-            )
-          )
-        end
+      ret = get(home.append('jobs').append(id).append('verified.txt'))
       verdict = ret.body
       throw :"The verdict of the job ##{id} is #{verdict.inspect}"
     end
@@ -267,21 +208,18 @@ class BazaRb
   #
   # @param [String] name The name of the job on the server
   # @param [String] owner The owner of the lock (any string)
+  # @raise [RuntimeError] If the name is already locked
+  # @raise [ServerFailure] If the lock operation fails
   def lock(name, owner)
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
     raise 'The "owner" of the lock is nil' if owner.nil?
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.get(
-              home.append('lock').append(name).add(owner:).to_s,
-              headers:
-            ),
-            [302, 409]
-          )
-        end
+      ret = post(
+        home.append('lock').append(name),
+        { 'owner' => owner },
+        [302, 409]
+      )
       throw :"Job name '#{name}' locked at #{@host}" if ret.code == 302
       raise "Failed to lock '#{name}' job at #{@host}, it's already locked"
     end
@@ -291,21 +229,17 @@ class BazaRb
   #
   # @param [String] name The name of the job on the server
   # @param [String] owner The owner of the lock (any string)
+  # @raise [ServerFailure] If the unlock operation fails
   def unlock(name, owner)
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
     raise 'The "owner" of the lock is nil' if owner.nil?
     raise 'The "owner" of the lock may not be empty' if owner.empty?
     elapsed(@loog) do
-      retry_it do
-        checked(
-          Typhoeus::Request.get(
-            home.append('unlock').append(name).add(owner:).to_s,
-            headers:
-          ),
-          302
-        )
-      end
+      post(
+        home.append('unlock').append(name),
+        { 'owner' => owner }
+      )
       throw :"Job name '#{name}' unlocked at #{@host}"
     end
   end
@@ -314,20 +248,13 @@ class BazaRb
   #
   # @param [String] name The name of the job on the server
   # @return [Integer] The ID of the job on the server
+  # @raise [ServerFailure] If the job doesn't exist or retrieval fails
   def recent(name)
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
     job = nil
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.get(
-              home.append('recent').append("#{name}.txt").to_s,
-              headers:
-            )
-          )
-        end
+      ret = get(home.append('recent').append("#{name}.txt"))
       job = ret.body.to_i
       throw :"The recent \"#{name}\" job's ID is ##{job} at #{@host}"
     end
@@ -343,15 +270,7 @@ class BazaRb
     raise 'The "name" of the job may not be empty' if name.empty?
     exists = false
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.get(
-              home.append('exists').append(name).to_s,
-              headers:
-            )
-          )
-        end
+      ret = get(home.append('exists').append(name))
       exists = ret.body == 'yes'
       throw :"The name \"#{name}\" #{exists ? 'exists' : "doesn't exist"} at #{@host}"
     end
@@ -362,9 +281,10 @@ class BazaRb
   #
   # @param [String] jname The name of the job on the server
   # @param [String] file The path to the file to upload
+  # @param [Integer] chunk_size Maximum size of one chunk
   # @return [Integer] The ID of the created durable
   # @raise [ServerFailure] If the upload fails
-  def durable_place(jname, file)
+  def durable_place(jname, file, chunk_size: 1_000_000)
     raise 'The "jname" of the durable is nil' if jname.nil?
     raise 'The "jname" of the durable may not be empty' if jname.empty?
     raise 'The "file" of the durable is nil' if file.nil?
@@ -373,30 +293,20 @@ class BazaRb
     Tempfile.open do |f|
       File.write(f.path, 'placeholder')
       elapsed(@loog) do
-        ret =
-          retry_it do
-            checked(
-              Typhoeus::Request.post(
-                home.append('durables').append('place').to_s,
-                body: {
-                  '_csrf' => csrf,
-                  'jname' => jname,
-                  'file' => File.basename(file),
-                  'zip' => File.open(f, 'rb')
-                },
-                headers:,
-                connecttimeout: @timeout,
-                timeout: @timeout
-              ),
-              302
-            )
-          end
+        ret = post(
+          home.append('durables').append('place'),
+          {
+            'jname' => jname,
+            'file' => File.basename(file),
+            'zip' => File.open(f, 'rb')
+          }
+        )
         id = ret.headers['X-Zerocracy-DurableId'].to_i
-        throw :"Durable ##{id} (#{file}) placed for job \"#{jname}\" at #{@host}"
+        throw :"Durable ##{id} (#{file}, #{File.size(file)} bytes) placed for job \"#{jname}\" at #{@host}"
       end
     end
     durable_lock(id, user_agent)
-    durable_save(id, file)
+    durable_save(id, file, chunk_size:)
     durable_unlock(id, user_agent)
     id
   end
@@ -405,23 +315,15 @@ class BazaRb
   #
   # @param [Integer] id The ID of the durable
   # @param [String] file The file to upload
-  def durable_save(id, file)
+  # @param [Integer] chunk_size Maximum size of one chunk
+  # @raise [ServerFailure] If the save operation fails
+  def durable_save(id, file, chunk_size: 1_000_000)
     raise 'The ID of the durable is nil' if id.nil?
     raise 'The ID of the durable must be a positive integer' unless id.positive?
     raise 'The "file" of the durable is nil' if file.nil?
     raise "The file '#{file}' is absent" unless File.exist?(file)
     elapsed(@loog) do
-      retry_it do
-        checked(
-          Typhoeus::Request.put(
-            home.append('durables').append(id).to_s,
-            body: File.binread(file),
-            headers:,
-            connecttimeout: @timeout,
-            timeout: @timeout
-          )
-        )
-      end
+      upload(home.append('durables').append(id), file, chunk_size:)
       throw :"Durable ##{id} saved #{File.size(file)} bytes to #{@host}"
     end
   end
@@ -429,13 +331,14 @@ class BazaRb
   # Load a single durable from server to local file.
   #
   # @param [Integer] id The ID of the durable
-  # @param [String] file The file to upload
+  # @param [String] file The local file path to save the downloaded durable
+  # @raise [ServerFailure] If the load operation fails
   def durable_load(id, file)
     raise 'The ID of the durable is nil' if id.nil?
     raise 'The ID of the durable must be a positive integer' unless id.positive?
     raise 'The "file" of the durable is nil' if file.nil?
     elapsed(@loog) do
-      download(home.append('durables').append(id).to_s, file)
+      download(home.append('durables').append(id), file)
       throw :"Durable ##{id} loaded #{File.size(file)} bytes from #{@host}"
     end
   end
@@ -444,21 +347,17 @@ class BazaRb
   #
   # @param [Integer] id The ID of the durable
   # @param [String] owner The owner of the lock
+  # @raise [ServerFailure] If the lock operation fails
   def durable_lock(id, owner)
     raise 'The ID of the durable is nil' if id.nil?
     raise 'The ID of the durable must be a positive integer' unless id.positive?
     raise 'The "owner" of the lock is nil' if owner.nil?
     raise 'The "owner" of the lock may not be empty' if owner.empty?
     elapsed(@loog) do
-      retry_it do
-        checked(
-          Typhoeus::Request.get(
-            home.append('durables').append(id).append('lock').add(owner:).to_s,
-            headers:
-          ),
-          302
-        )
-      end
+      post(
+        home.append('durables').append(id).append('lock'),
+        { 'owner' => owner }
+      )
       throw :"Durable ##{id} locked at #{@host}"
     end
   end
@@ -467,21 +366,17 @@ class BazaRb
   #
   # @param [Integer] id The ID of the durable
   # @param [String] owner The owner of the lock
+  # @raise [ServerFailure] If the unlock operation fails
   def durable_unlock(id, owner)
     raise 'The ID of the durable is nil' if id.nil?
     raise 'The ID of the durable must be a positive integer' unless id.positive?
     raise 'The "owner" of the lock is nil' if owner.nil?
     raise 'The "owner" of the lock may not be empty' if owner.empty?
     elapsed(@loog) do
-      retry_it do
-        checked(
-          Typhoeus::Request.get(
-            home.append('durables').append(id).append('unlock').add(owner:).to_s,
-            headers:
-          ),
-          302
-        )
-      end
+      post(
+        home.append('durables').append(id).append('unlock'),
+        { 'owner' => owner }
+      )
       throw :"Durable ##{id} unlocked at #{@host}"
     end
   end
@@ -498,16 +393,7 @@ class BazaRb
     raise 'The "file" may not be empty' if file.empty?
     id = nil
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.get(
-              home.append('durables').append('find').add(jname:, file:).to_s,
-              headers:
-            ),
-            [200, 404]
-          )
-        end
+      ret = get(home.append('durables').append('find').add(jname:, file:), [200, 404])
       if ret.code == 200
         id = ret.body.to_i
         throw :"Found durable ##{id} for job \"#{jname}\" file \"#{file}\" at #{@host}"
@@ -533,26 +419,16 @@ class BazaRb
     raise 'The "summary" is nil' if summary.nil?
     id = nil
     body = {
-      '_csrf' => csrf,
       'human' => recipient,
       'amount' => format('%0.6f', amount),
       'summary' => summary
     }
     body['job'] = job unless job.nil?
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.post(
-              home.append('account').append('transfer').to_s,
-              body:,
-              headers:,
-              connecttimeout: @timeout,
-              timeout: @timeout
-            ),
-            302
-          )
-        end
+      ret = post(
+        home.append('account').append('transfer'),
+        body
+      )
       id = ret.headers['X-Zerocracy-ReceiptId'].to_i
       throw :"Transferred Ƶ#{format('%0.6f', amount)} to @#{recipient} at #{@host}"
     end
@@ -575,27 +451,16 @@ class BazaRb
     raise 'The "job" must be Integer' unless job.is_a?(Integer)
     raise 'The "summary" is nil' if summary.nil?
     id = nil
-    body = {
-      '_csrf' => csrf,
-      'tab' => tab,
-      'amount' => format('%0.6f', amount),
-      'summary' => summary,
-      'job' => job.to_s
-    }
     elapsed(@loog) do
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.post(
-              home.append('account').append('fee').to_s,
-              body:,
-              headers:,
-              connecttimeout: @timeout,
-              timeout: @timeout
-            ),
-            302
-          )
-        end
+      ret = post(
+        home.append('account').append('fee'),
+        {
+          'tab' => tab,
+          'amount' => format('%0.6f', amount),
+          'summary' => summary,
+          'job' => job.to_s
+        }
+      )
       id = ret.headers['X-Zerocracy-ReceiptId'].to_i
       throw :"Fee Ƶ#{format('%0.6f', amount)} paid at #{@host}"
     end
@@ -612,16 +477,7 @@ class BazaRb
     success = false
     elapsed(@loog) do
       uri = home.append('pop').add(owner:)
-      ret =
-        retry_it do
-          checked(
-            Typhoeus::Request.get(
-              uri.to_s,
-              headers:
-            ),
-            [204, 302]
-          )
-        end
+      ret = get(uri, [204, 302])
       if ret.code == 204
         FileUtils.rm_f(zip)
         throw :"Nothing to pop at #{uri}"
@@ -647,20 +503,7 @@ class BazaRb
     raise 'The "zip" of the job is nil' if zip.nil?
     raise "The 'zip' file is absent: #{zip}" unless File.exist?(zip)
     elapsed(@loog) do
-      retry_it do
-        checked(
-          Typhoeus::Request.put(
-            home.append('finish').add(id:).to_s,
-            connecttimeout: @timeout,
-            timeout: @timeout,
-            body: File.binread(zip),
-            headers: headers.merge(
-              'Content-Type' => 'application/octet-stream',
-              'Content-Length' => File.size(zip)
-            )
-          )
-        )
-      end
+      upload(home.append('finish').add(id:), zip)
       throw :"Pushed #{File.size(zip)} bytes to #{@host}, finished job ##{id}"
     end
   end
@@ -681,30 +524,19 @@ class BazaRb
   def enter(name, badge, why, job)
     elapsed(@loog, intro: "Entered valve #{badge} to #{name}") do
       retry_it do
-        ret = checked(
-          Typhoeus::Request.get(
-            home.append('valves').append('result').add(badge:).to_s,
-            headers:
-          ),
-          [200, 204]
-        )
+        ret = get(home.append('valves').append('result').add(badge:), [200, 204])
         return ret.body if ret.code == 200
         r = yield
         uri = home.append('valves').append('add')
         uri = uri.add(job:) unless job.nil?
-        checked(
-          Typhoeus::Request.post(
-            uri.to_s,
-            body: {
-              '_csrf' => csrf,
-              'name' => name,
-              'badge' => badge,
-              'why' => why,
-              'result' => r.to_s
-            },
-            headers:
-          ),
-          302
+        post(
+          uri,
+          {
+            'name' => name,
+            'badge' => badge,
+            'why' => why,
+            'result' => r.to_s
+          }
         )
         r
       end
@@ -721,15 +553,7 @@ class BazaRb
   def csrf
     token = nil
     elapsed(@loog) do
-      retry_it do
-        token = checked(
-          Typhoeus::Request.get(
-            home.append('csrf').to_s,
-            headers:
-          ),
-          200
-        ).body
-      end
+      token = get(home.append('csrf')).body
       throw :"CSRF token retrieved (#{token.length} chars)"
     end
     token
@@ -737,10 +561,16 @@ class BazaRb
 
   private
 
+  # Get the user agent string for HTTP requests.
+  #
+  # @return [String] The user agent string
   def user_agent
     "baza.rb #{BazaRb::VERSION}"
   end
 
+  # Get default headers for HTTP requests.
+  #
+  # @return [Hash] The default headers including User-Agent, Connection, and authentication token
   def headers
     {
       'User-Agent' => user_agent,
@@ -749,8 +579,26 @@ class BazaRb
     }
   end
 
+  # Decompress gzipped data.
+  #
+  # @param [String] data The gzipped data to decompress
+  # @return [String] The decompressed data
+  def unzip(data)
+    io = StringIO.new(data)
+    gz = Zlib::GzipReader.new(io)
+    gz.read
+  end
+
+  # Compress request parameters with gzip.
+  #
+  # @param [Hash] params The request parameters with :body and :headers keys
+  # @return [Hash] The modified parameters with compressed body and updated headers
   def zipped(params)
-    body = gzip(params.fetch(:body))
+    io = StringIO.new
+    gz = Zlib::GzipWriter.new(io)
+    gz.write(params.fetch(:body))
+    gz.close
+    body = io.string
     headers = params
       .fetch(:headers)
       .merge(
@@ -763,15 +611,9 @@ class BazaRb
     params.merge(body:, headers:)
   end
 
-  def gzip(data)
-    (+'').tap do |result|
-      io = StringIO.new(result)
-      gz = Zlib::GzipWriter.new(io)
-      gz.write(data)
-      gz.close
-    end
-  end
-
+  # Build the base URI for API requests.
+  #
+  # @return [Iri] The base URI object
   def home
     Iri.new('')
       .host(@host)
@@ -779,6 +621,10 @@ class BazaRb
       .scheme(@ssl ? 'https' : 'http')
   end
 
+  # Execute a block with retries on timeout.
+  #
+  # @yield The block to execute with retries
+  # @return [Object] The result of the block execution
   def retry_it(&)
     with_retries(max_tries: @retries, rescue: TimedOut, &)
   end
@@ -831,89 +677,167 @@ class BazaRb
     raise ServerFailure, msg
   end
 
-  # Download file via GET, in ranges.
-  # @param [String] uri The URI
-  # @param [String] file The path to save to
-  def download(uri, file)
-    raise 'The "file" is nil' if file.nil?
-    FileUtils.mkdir_p(File.dirname(file))
-    elapsed(@loog) do
-      File.open(file, 'wb+') do |f|
-        loop do
-          request = Typhoeus::Request.new(
-            uri.to_s,
-            method: :get,
-            headers: headers.merge(
-              'Accept' => 'application/octet-stream',
-              'Range' => "bytes=#{f.size}-"
-            ),
-            connecttimeout: @timeout,
-            timeout: @timeout
-          )
-          request.on_body do |chunk|
-            f.write(chunk)
-          end
-          retry_it do
-            request.run
-          end
-          ret = request.response
-          checked(ret, [200, 206])
-          break if ret.code == 200
-          _, v = ret.headers['Content-Range'].split
-          range, total = v.split('/')
-          raise "Total size is not valid (#{total.inspect})" unless total.match?(/^\*|[0-9]+$/)
-          b, e = range.split('-')
-          raise "Range is not valid (#{range.inspect})" unless e.match?(/^[0-9]+$/)
-          len = ret.headers['Content-Length'].to_i
-          unless len.zero?
-            raise "Range size (#{range.inspect}) is not equal to Content-Length" unless len - 1 == e.to_i - b.to_i
-            raise "Range end (#{range.inspect}) is not equal to #{f.size}" if e.to_i != f.size - 1
-          end
-          break if e.to_i == total.to_i - 1
-        end
-      end
-      throw :"Downloaded #{File.size(file)} bytes from #{uri}"
+  # Make a GET request.
+  #
+  # @param [Iri] uri The URI to send the request to
+  # @param [Array<Integer>] allowed List of allowed HTTP response codes
+  # @return [Typhoeus::Response] The HTTP response
+  # @raise [ServerFailure] If the response code is not in the allowed list
+  def get(uri, allowed = [200])
+    retry_it do
+      checked(
+        Typhoeus::Request.get(
+          uri.to_s,
+          headers:,
+          connecttimeout: @timeout,
+          timeout: @timeout
+        ),
+        allowed
+      )
     end
   end
 
-  # Upload file via PUT, in ranges.
-  # @param [String] uri The URI
-  # @param [String] file The path to save to
-  # @param [Hash] headers Hash of HTTP headers
-  def upload(uri, file, headers = {})
-    raise 'The "file" is nil' if file.nil?
-    raise 'The "file" does not exist' unless File.exist?(file)
+  # Make a POST request.
+  #
+  # @param [Iri] uri The URI to send the request to
+  # @param [Hash] params The request parameters to send in the body
+  # @param [Array<Integer>] allowed List of allowed HTTP response codes
+  # @return [Typhoeus::Response] The HTTP response
+  # @raise [ServerFailure] If the response code is not in the allowed list
+  def post(uri, params, allowed = [302])
+    retry_it do
+      checked(
+        Typhoeus::Request.post(
+          uri.to_s,
+          body: params.merge('_csrf' => csrf),
+          headers:,
+          connecttimeout: @timeout,
+          timeout: @timeout
+        ),
+        allowed
+      )
+    end
+  end
+
+  # Download file via GET, using range requests for large files.
+  #
+  # @param [Iri] uri The URI to download from
+  # @param [String] file The local file path to save to
+  # @raise [ServerFailure] If the download fails
+  def download(uri, file)
+    FileUtils.mkdir_p(File.dirname(file))
+    FileUtils.rm_f(file)
+    chunk = 0
+    elapsed(@loog) do
+      pos = 0
+      loop do
+        request = Typhoeus::Request.new(
+          uri.to_s,
+          method: :get,
+          headers: headers.merge(
+            'Accept' => 'application/octet-stream',
+            'Accept-Encoding' => 'gzip',
+            'Range' => "bytes=#{pos}-"
+          ),
+          connecttimeout: @timeout,
+          timeout: @timeout
+        )
+        slice = ''
+        request.on_body do |data|
+          slice = data
+        end
+        retry_it do
+          request.run
+        end
+        ret = request.response
+        msg = [
+          "GET #{uri.to_uri.path} #{ret.code}",
+          "#{slice.bytesize} bytes",
+          ('in gzip' if ret.headers['Content-Encoding'] == 'gzip'),
+          ("ranged as #{ret.headers['Content-Range'].inspect}" if ret.headers['Content-Range'])
+        ]
+        checked(ret, [200, 206])
+        if ret.headers['Content-Encoding'] == 'gzip'
+          slice = unzip(slice)
+          msg << "unzipped to #{slice.bytesize} bytes"
+        end
+        File.open(file, 'ab') do |f|
+          f.write(slice)
+        end
+        @loog.debug(msg.compact.join(', '))
+        break if ret.code == 200
+        _, v = ret.headers['Content-Range'].split
+        range, total = v.split('/')
+        raise "Total size is not valid (#{total.inspect})" unless total.match?(/^\*|[0-9]+$/)
+        _b, e = range.split('-')
+        raise "Range is not valid (#{range.inspect})" unless e.match?(/^[0-9]+$/)
+        len = ret.headers['Content-Length'].to_i
+        pos = e.to_i
+        pos += 1 unless len.zero?
+        break if e.to_i == total.to_i - 1
+        chunk += 1
+      end
+      throw :"Downloaded #{File.size(file)} bytes in #{chunk + 1} chunks from #{uri}"
+    end
+  end
+
+  # Upload file via PUT, using chunked uploads for large files.
+  #
+  # @param [Iri] uri The URI to upload to
+  # @param [String] file The local file path to upload from
+  # @param [Hash] extra Hash of extra HTTP headers to include
+  # @param [Integer] chunk_size Maximum size of each chunk in bytes
+  # @raise [ServerFailure] If the upload fails
+  def upload(uri, file, extra = {}, chunk_size: 1_000_000)
     params = {
       connecttimeout: @timeout,
       timeout: @timeout,
-      body: data,
-      headers: headers.merge(
+      headers: headers.merge(extra).merge(
         'Content-Type' => 'application/octet-stream'
       )
     }
-    max = 1_000_000
+    total = File.size(file)
     chunk = 0
+    sent = 0
     elapsed(@loog) do
-      params[:headers]['X-Zerocracy-Chunk'] = chunk.to_s
       loop do
-        File.open(file, 'rb') do |f|
-          f.seek(max * chunk)
-          data = f.read(max)
-          data = '' if data.nil?
-          params[:headers]['Content-Length'] = data.bytesize
+        slice =
+          if total > chunk_size
+            File.open(file, 'rb') do |f|
+              params[:headers]['X-Zerocracy-Chunk'] = chunk.to_s
+              f.seek(chunk_size * chunk)
+              f.read(chunk_size) || ''
+            end
+          else
+            File.binread(file)
+          end
+        params[:body] = slice
+        params[:headers]['Content-Length'] = slice.bytesize
+        params = zipped(params) if @compress
+        ret =
           retry_it do
             checked(
               Typhoeus::Request.put(
                 uri.to_s,
-                @compress ? zipped(params) : params
+                params
               )
             )
           end
-          break if data.empty?
-        end
+        sent += params[:body].bytesize
+        @loog.debug(
+          [
+            "PUT #{uri.to_uri.path} #{ret.code}",
+            ("gzipped #{slice.bytesize} bytes" if params[:headers]['Content-Encoding'] == 'gzip'),
+            "sent #{params[:body].bytesize} bytes",
+            ("chunk ##{chunk}" if params[:headers]['X-Zerocracy-Chunk']),
+            ('no chunks' unless params[:headers]['X-Zerocracy-Chunk'])
+          ].compact.join(', ')
+        )
+        break if slice.empty?
+        break if total <= chunk_size
         chunk += 1
       end
-      throw :"Uploaded #{File.size(file)} bytes to #{uri} in #{chunk + 1} chunk(s)"
+      throw :"Uploaded #{sent} bytes to #{uri}#{" in #{chunk + 1} chunks" if chunk.positive?}"
     end
   end
 end
