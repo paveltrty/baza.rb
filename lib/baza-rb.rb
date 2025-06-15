@@ -103,10 +103,10 @@ class BazaRb
     raise 'The "meta" of the job is nil' if meta.nil?
     elapsed(@loog) do
       Tempfile.open do |file|
-        File.binwrite(file, data)
+        File.binwrite(file.path, data)
         upload(
           home.append('push').append(name),
-          file,
+          file.path,
           headers.merge(
             'X-Zerocracy-Meta' => meta.map { |v| Base64.encode64(v).delete("\n") }.join(' ')
           ),
