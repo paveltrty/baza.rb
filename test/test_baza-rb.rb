@@ -6,6 +6,7 @@
 require 'factbase'
 require 'loog'
 require 'net/http'
+require 'qbash'
 require 'random-port'
 require 'securerandom'
 require 'socket'
@@ -674,7 +675,48 @@ class TestBazaRb < Minitest::Test
     baza.push('test', 'data', [])
   end
 
+  def test_durable_load_from_sinatra
+    WebMock.enable_net_connect!
+    Dir.mktmpdir do |dir|
+      with_sinatra_server do |baza|
+        file = File.join(dir, 'x.txt')
+        baza.durable_load(42, file)
+        assert_equal('Hello, world!', File.read(file))
+      end
+    end
+  end
+
   private
+
+  def with_sinatra_server
+    Dir.mktmpdir do |dir|
+      app = File.join(dir, 'app.rb')
+      File.write(
+        app,
+        "
+        require 'rack'
+        require 'sinatra'
+        use Rack::Deflater
+        get '/' do
+          'I am alive'
+        end
+        get '/durables/42' do
+          'Hello, world!'
+        end
+        "
+      )
+      RandomPort::Pool::SINGLETON.acquire do |port|
+        host = '127.0.0.1'
+        qbash("ruby #{Shellwords.escape(app)} -p #{port}", log: Loog::VERBOSE, accept: nil) do
+          loop do
+            break if Typhoeus::Request.get("http://#{host}:#{port}").code == 200
+            sleep(0.1)
+          end
+          yield BazaRb.new(host, port, '0000-0000-0000', ssl: false)
+        end
+      end
+    end
+  end
 
   def with_http_server(code, response, opts = {})
     opts = { ssl: false, timeout: 1 }.merge(opts)

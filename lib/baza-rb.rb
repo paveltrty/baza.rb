@@ -740,7 +740,7 @@ class BazaRb
           uri.to_s,
           method: :get,
           headers: headers.merge(
-            'Accept' => 'application/octet-stream',
+            'Accept' => '*',
             'Accept-Encoding' => 'gzip',
             'Range' => "bytes=#{pos}-"
           ),
