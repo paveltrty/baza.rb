@@ -762,6 +762,7 @@ class BazaRb
           msg << "unzipped to #{slice.bytesize} bytes"
         end
         File.open(file, 'ab') do |f|
+          msg << "added to existed #{File.size(file)} bytes"
           f.write(slice)
         end
         @loog.debug(msg.compact.join(', '))
