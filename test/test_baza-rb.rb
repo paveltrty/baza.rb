@@ -482,12 +482,13 @@ class TestBazaRb < Minitest::Test
     WebMock.disable_net_connect!
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'loaded.txt')
-      stub_request(:get, 'https://example.org:443/durables/42')
-        .to_return(status: 206, body: '', headers: { 'Content-Range' => 'bytes 0-0/*' })
-      stub_request(:get, 'https://example.org:443/durables/42')
-        .to_return(status: 206, body: 'привет', headers: { 'Content-Range' => 'bytes 0-5/6' })
+      stub_request(:get, 'https://example.org:443/durables/42').to_return(
+        { status: 206, body: '', headers: { 'Content-Range' => 'bytes 0-0/*', 'Content-Length' => '0' } },
+        { status: 206, body: 'привет', headers: { 'Content-Range' => 'bytes 0-5/11', 'Content-Length' => '5' } },
+        { status: 206, body: ' друг', headers: { 'Content-Range' => 'bytes 6-10/11', 'Content-Length' => '5' } }
+      )
       fake_baza.durable_load(42, file)
-      assert_equal('привет', File.read(file))
+      assert_equal('привет друг', File.read(file))
     end
   end
 
