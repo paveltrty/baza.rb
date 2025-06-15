@@ -776,6 +776,7 @@ class BazaRb
         pos += 1 unless len.zero?
         break if e.to_i == total.to_i - 1
         chunk += 1
+        sleep(1) if len.zero?
       end
       throw :"Downloaded #{File.size(file)} bytes in #{chunk + 1} chunks from #{uri}"
     end
