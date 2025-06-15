@@ -763,8 +763,12 @@ class BazaRb
         ]
         ret = checked(ret, [200, 206])
         if ret.headers['Content-Encoding'] == 'gzip'
-          slice = unzip(slice)
-          msg << "unzipped to #{slice.bytesize} bytes"
+          begin
+            slice = unzip(slice)
+            msg << "unzipped to #{slice.bytesize} bytes"
+          rescue BazaRb::BadCompression => e
+            raise BazaRb::BadCompression, "#{msg.compact.join(', ')} (#{e.message})"
+          end
         end
         File.open(file, 'ab') do |f|
           msg << "added to existed #{File.size(file)} bytes"
