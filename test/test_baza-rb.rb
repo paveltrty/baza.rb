@@ -707,7 +707,7 @@ class TestBazaRb < Minitest::Test
       )
       RandomPort::Pool::SINGLETON.acquire do |port|
         host = '127.0.0.1'
-        qbash("ruby #{Shellwords.escape(app)} -p #{port}", log: Loog::VERBOSE, accept: nil) do
+        qbash("bundle exec ruby #{Shellwords.escape(app)} -p #{port}", log: Loog::VERBOSE, accept: nil) do
           loop do
             break if Typhoeus::Request.get("http://#{host}:#{port}").code == 200
             sleep(0.1)

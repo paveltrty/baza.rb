@@ -749,7 +749,7 @@ class BazaRb
         )
         slice = ''
         request.on_body do |data|
-          slice = data
+          slice += data
         end
         retry_it do
           request.run
