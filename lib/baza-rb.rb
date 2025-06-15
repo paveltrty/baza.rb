@@ -40,6 +40,9 @@ class BazaRb
   # Unexpected response arrived from the server.
   class BadResponse < StandardError; end
 
+  # When server sent incorrectly compressed data.
+  class BadCompression < StandardError; end
+
   # Initialize a new Zerocracy API client.
   #
   # @param [String] host The API host name (e.g., 'api.zerocracy.com')
@@ -588,7 +591,7 @@ class BazaRb
     gz = Zlib::GzipReader.new(io)
     gz.read
   rescue Zlib::GzipFile::Error => e
-    raise "Failed to unzip #{data.bytesize} bytes: #{e.message}"
+    raise BadCompression, "Failed to unzip #{data.bytesize} bytes: #{e.message}"
   end
 
   # Compress request parameters with gzip.

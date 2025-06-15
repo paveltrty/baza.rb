@@ -499,7 +499,7 @@ class TestBazaRb < Minitest::Test
       stub_request(:get, 'https://example.org:443/durables/42').to_return(
         status: 200, body: 'this is not gzip!', headers: { 'Content-Encoding' => 'gzip' }
       )
-      assert_raises(StandardError) { fake_baza.durable_load(42, file) }
+      assert_raises(BazaRb::BadCompression) { fake_baza.durable_load(42, file) }
     end
   end
 
