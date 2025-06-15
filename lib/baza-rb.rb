@@ -157,6 +157,7 @@ class BazaRb
   #
   # @param [Integer] id The ID of the job on the server
   # @return [String] The stdout, as a text
+  # @raise [ServerFailure] If the job doesn't exist or retrieval fails
   def stdout(id)
     raise 'The ID of the job is nil' if id.nil?
     raise 'The ID of the job must be a positive integer' unless id.positive?
@@ -173,6 +174,7 @@ class BazaRb
   #
   # @param [Integer] id The ID of the job on the server
   # @return [Integer] The exit code
+  # @raise [ServerFailure] If the job doesn't exist or retrieval fails
   def exit_code(id)
     raise 'The ID of the job is nil' if id.nil?
     raise 'The ID of the job must be a positive integer' unless id.positive?
@@ -189,6 +191,7 @@ class BazaRb
   #
   # @param [Integer] id The ID of the job on the server
   # @return [String] The verdict
+  # @raise [ServerFailure] If the job doesn't exist or retrieval fails
   def verified(id)
     raise 'The ID of the job is nil' if id.nil?
     raise 'The ID of the job must be a positive integer' unless id.positive?
@@ -205,6 +208,8 @@ class BazaRb
   #
   # @param [String] name The name of the job on the server
   # @param [String] owner The owner of the lock (any string)
+  # @raise [RuntimeError] If the name is already locked
+  # @raise [ServerFailure] If the lock operation fails
   def lock(name, owner)
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
@@ -224,6 +229,7 @@ class BazaRb
   #
   # @param [String] name The name of the job on the server
   # @param [String] owner The owner of the lock (any string)
+  # @raise [ServerFailure] If the unlock operation fails
   def unlock(name, owner)
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
@@ -242,6 +248,7 @@ class BazaRb
   #
   # @param [String] name The name of the job on the server
   # @return [Integer] The ID of the job on the server
+  # @raise [ServerFailure] If the job doesn't exist or retrieval fails
   def recent(name)
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
@@ -309,6 +316,7 @@ class BazaRb
   # @param [Integer] id The ID of the durable
   # @param [String] file The file to upload
   # @param [Integer] chunk_size Maximum size of one chunk
+  # @raise [ServerFailure] If the save operation fails
   def durable_save(id, file, chunk_size: 1_000_000)
     raise 'The ID of the durable is nil' if id.nil?
     raise 'The ID of the durable must be a positive integer' unless id.positive?
@@ -323,7 +331,8 @@ class BazaRb
   # Load a single durable from server to local file.
   #
   # @param [Integer] id The ID of the durable
-  # @param [String] file The file to upload
+  # @param [String] file The local file path to save the downloaded durable
+  # @raise [ServerFailure] If the load operation fails
   def durable_load(id, file)
     raise 'The ID of the durable is nil' if id.nil?
     raise 'The ID of the durable must be a positive integer' unless id.positive?
@@ -338,6 +347,7 @@ class BazaRb
   #
   # @param [Integer] id The ID of the durable
   # @param [String] owner The owner of the lock
+  # @raise [ServerFailure] If the lock operation fails
   def durable_lock(id, owner)
     raise 'The ID of the durable is nil' if id.nil?
     raise 'The ID of the durable must be a positive integer' unless id.positive?
@@ -356,6 +366,7 @@ class BazaRb
   #
   # @param [Integer] id The ID of the durable
   # @param [String] owner The owner of the lock
+  # @raise [ServerFailure] If the unlock operation fails
   def durable_unlock(id, owner)
     raise 'The ID of the durable is nil' if id.nil?
     raise 'The ID of the durable must be a positive integer' unless id.positive?
@@ -550,10 +561,16 @@ class BazaRb
 
   private
 
+  # Get the user agent string for HTTP requests.
+  #
+  # @return [String] The user agent string
   def user_agent
     "baza.rb #{BazaRb::VERSION}"
   end
 
+  # Get default headers for HTTP requests.
+  #
+  # @return [Hash] The default headers including User-Agent, Connection, and authentication token
   def headers
     {
       'User-Agent' => user_agent,
@@ -562,12 +579,20 @@ class BazaRb
     }
   end
 
+  # Decompress gzipped data.
+  #
+  # @param [String] data The gzipped data to decompress
+  # @return [String] The decompressed data
   def unzip(data)
     io = StringIO.new(data)
     gz = Zlib::GzipReader.new(io)
     gz.read
   end
 
+  # Compress request parameters with gzip.
+  #
+  # @param [Hash] params The request parameters with :body and :headers keys
+  # @return [Hash] The modified parameters with compressed body and updated headers
   def zipped(params)
     io = StringIO.new
     gz = Zlib::GzipWriter.new(io)
@@ -586,6 +611,9 @@ class BazaRb
     params.merge(body:, headers:)
   end
 
+  # Build the base URI for API requests.
+  #
+  # @return [Iri] The base URI object
   def home
     Iri.new('')
       .host(@host)
@@ -593,6 +621,10 @@ class BazaRb
       .scheme(@ssl ? 'https' : 'http')
   end
 
+  # Execute a block with retries on timeout.
+  #
+  # @yield The block to execute with retries
+  # @return [Object] The result of the block execution
   def retry_it(&)
     with_retries(max_tries: @retries, rescue: TimedOut, &)
   end
@@ -646,8 +678,11 @@ class BazaRb
   end
 
   # Make a GET request.
-  # @param [String] uri The URI
+  #
+  # @param [Iri] uri The URI to send the request to
   # @param [Array<Integer>] allowed List of allowed HTTP response codes
+  # @return [Typhoeus::Response] The HTTP response
+  # @raise [ServerFailure] If the response code is not in the allowed list
   def get(uri, allowed = [200])
     retry_it do
       checked(
@@ -663,8 +698,12 @@ class BazaRb
   end
 
   # Make a POST request.
-  # @param [String] uri The URI
+  #
+  # @param [Iri] uri The URI to send the request to
+  # @param [Hash] params The request parameters to send in the body
   # @param [Array<Integer>] allowed List of allowed HTTP response codes
+  # @return [Typhoeus::Response] The HTTP response
+  # @raise [ServerFailure] If the response code is not in the allowed list
   def post(uri, params, allowed = [302])
     retry_it do
       checked(
@@ -680,9 +719,11 @@ class BazaRb
     end
   end
 
-  # Download file via GET, in ranges.
-  # @param [String] uri The URI
-  # @param [String] file The path to save to
+  # Download file via GET, using range requests for large files.
+  #
+  # @param [Iri] uri The URI to download from
+  # @param [String] file The local file path to save to
+  # @raise [ServerFailure] If the download fails
   def download(uri, file)
     FileUtils.mkdir_p(File.dirname(file))
     FileUtils.rm_f(file)
@@ -718,7 +759,7 @@ class BazaRb
         checked(ret, [200, 206])
         if ret.headers['Content-Encoding'] == 'gzip'
           slice = unzip(slice)
-          msg << "unziped to #{slice.bytesize} bytes"
+          msg << "unzipped to #{slice.bytesize} bytes"
         end
         File.open(file, 'ab') do |f|
           f.write(slice)
@@ -740,10 +781,13 @@ class BazaRb
     end
   end
 
-  # Upload file via PUT, in ranges.
-  # @param [String] uri The URI
-  # @param [String] file The path to save to
-  # @param [Hash] extra Hash of extra HTTP headers
+  # Upload file via PUT, using chunked uploads for large files.
+  #
+  # @param [Iri] uri The URI to upload to
+  # @param [String] file The local file path to upload from
+  # @param [Hash] extra Hash of extra HTTP headers to include
+  # @param [Integer] chunk_size Maximum size of each chunk in bytes
+  # @raise [ServerFailure] If the upload fails
   def upload(uri, file, extra = {}, chunk_size: 1_000_000)
     params = {
       connecttimeout: @timeout,
@@ -793,7 +837,7 @@ class BazaRb
         break if total <= chunk_size
         chunk += 1
       end
-      throw :"Uploaded #{sent} bytes to #{uri}#{"in #{chunk + 1} chunks" if chunk.positive?}"
+      throw :"Uploaded #{sent} bytes to #{uri}#{" in #{chunk + 1} chunks" if chunk.positive?}"
     end
   end
 end
