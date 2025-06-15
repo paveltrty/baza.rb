@@ -749,14 +749,13 @@ class BazaRb
         retry_it do
           request.run
         end
-        ret = request.response
+        ret = checked(request.response, [200, 206])
         msg = [
           "GET #{uri.to_uri.path} #{ret.code}",
           "#{slice.bytesize} bytes",
           ('in gzip' if ret.headers['Content-Encoding'] == 'gzip'),
           ("ranged as #{ret.headers['Content-Range'].inspect}" if ret.headers['Content-Range'])
         ]
-        checked(ret, [200, 206])
         if ret.headers['Content-Encoding'] == 'gzip'
           slice = unzip(slice)
           msg << "unzipped to #{slice.bytesize} bytes"
