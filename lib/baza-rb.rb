@@ -587,6 +587,8 @@ class BazaRb
     io = StringIO.new(data)
     gz = Zlib::GzipReader.new(io)
     gz.read
+  rescue Zlib::GzipFile::Error => e
+    raise "Failed to unzip #{data.bytesize} bytes: #{e.message}"
   end
 
   # Compress request parameters with gzip.

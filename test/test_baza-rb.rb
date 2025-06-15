@@ -492,6 +492,17 @@ class TestBazaRb < Minitest::Test
     end
   end
 
+  def test_durable_load_with_broken_compression
+    WebMock.disable_net_connect!
+    Dir.mktmpdir do |dir|
+      file = File.join(dir, 'loaded.txt')
+      stub_request(:get, 'https://example.org:443/durables/42').to_return(
+        status: 200, body: 'this is not gzip!', headers: { 'Content-Encoding' => 'gzip' }
+      )
+      assert_raises(StandardError) { fake_baza.durable_load(42, file) }
+    end
+  end
+
   def test_durable_lock
     WebMock.disable_net_connect!
     stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')
