@@ -295,7 +295,7 @@ class BazaRb
           }
         )
         id = ret.headers['X-Zerocracy-DurableId'].to_i
-        throw :"Durable ##{id} (#{file}) placed for job \"#{jname}\" at #{@host}"
+        throw :"Durable ##{id} (#{file}, #{File.size(file)} bytes) placed for job \"#{jname}\" at #{@host}"
       end
     end
     durable_lock(id, user_agent)
@@ -685,6 +685,8 @@ class BazaRb
   # @param [String] file The path to save to
   def download(uri, file)
     FileUtils.mkdir_p(File.dirname(file))
+    FileUtils.rm_f(file)
+    chunk = 0
     elapsed(@loog) do
       pos = 0
       loop do
@@ -699,31 +701,42 @@ class BazaRb
           connecttimeout: @timeout,
           timeout: @timeout
         )
-        chunk = nil
+        slice = ''
         request.on_body do |data|
-          chunk = data
+          slice = data
         end
         retry_it do
           request.run
         end
         ret = request.response
+        msg = [
+          "GET #{uri.to_uri.path} #{ret.code}",
+          "#{slice.bytesize} bytes",
+          ('in gzip' if ret.headers['Content-Encoding'] == 'gzip'),
+          ("ranged as #{ret.headers['Content-Range'].inspect}" if ret.headers['Content-Range'])
+        ]
         checked(ret, [200, 206])
-        chunk = unzip(chunk) if ret.headers['Content-Encoding'] == 'gzip'
-        File.open(file, 'ab') do |f|
-          f.write(chunk)
+        if ret.headers['Content-Encoding'] == 'gzip'
+          slice = unzip(slice)
+          msg << "unziped to #{slice.bytesize} bytes"
         end
+        File.open(file, 'ab') do |f|
+          f.write(slice)
+        end
+        @loog.debug(msg.compact.join(', '))
         break if ret.code == 200
         _, v = ret.headers['Content-Range'].split
         range, total = v.split('/')
         raise "Total size is not valid (#{total.inspect})" unless total.match?(/^\*|[0-9]+$/)
-        b, e = range.split('-')
+        _b, e = range.split('-')
         raise "Range is not valid (#{range.inspect})" unless e.match?(/^[0-9]+$/)
         len = ret.headers['Content-Length'].to_i
         pos = e.to_i
         pos += 1 unless len.zero?
         break if e.to_i == total.to_i - 1
+        chunk += 1
       end
-      throw :"Downloaded #{File.size(file)} bytes from #{uri}"
+      throw :"Downloaded #{File.size(file)} bytes in #{chunk + 1} chunks from #{uri}"
     end
   end
 
@@ -741,33 +754,46 @@ class BazaRb
     }
     total = File.size(file)
     chunk = 0
+    sent = 0
     elapsed(@loog) do
       loop do
-        data =
-          File.open(file, 'rb') do |f|
-            if total > chunk_size
+        slice =
+          if total > chunk_size
+            File.open(file, 'rb') do |f|
               params[:headers]['X-Zerocracy-Chunk'] = chunk.to_s
               f.seek(chunk_size * chunk)
               f.read(chunk_size) || ''
-            else
-              File.binread(file)
             end
+          else
+            File.binread(file)
           end
-        params[:body] = data
-        params[:headers]['Content-Length'] = data.bytesize
-        retry_it do
-          checked(
-            Typhoeus::Request.put(
-              uri.to_s,
-              @compress ? zipped(params) : params
+        params[:body] = slice
+        params[:headers]['Content-Length'] = slice.bytesize
+        params = zipped(params) if @compress
+        ret =
+          retry_it do
+            checked(
+              Typhoeus::Request.put(
+                uri.to_s,
+                params
+              )
             )
-          )
-        end
-        break if data.empty?
+          end
+        sent += params[:body].bytesize
+        @loog.debug(
+          [
+            "PUT #{uri.to_uri.path} #{ret.code}",
+            ("gzipped #{slice.bytesize} bytes" if params[:headers]['Content-Encoding'] == 'gzip'),
+            "sent #{params[:body].bytesize} bytes",
+            ("chunk ##{chunk}" if params[:headers]['X-Zerocracy-Chunk']),
+            ('no chunks' unless params[:headers]['X-Zerocracy-Chunk'])
+          ].compact.join(', ')
+        )
+        break if slice.empty?
         break if total <= chunk_size
         chunk += 1
       end
-      throw :"Uploaded #{File.size(file)} bytes to #{uri} in #{chunk + 1} chunk(s)"
+      throw :"Uploaded #{sent} bytes to #{uri}#{"in #{chunk + 1} chunks" if chunk.positive?}"
     end
   end
 end

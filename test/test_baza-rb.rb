@@ -40,7 +40,7 @@ class TestBazaRb < Minitest::Test
     fb.insert.foo = 'test-' * 10_000
     fb.insert
     n = fake_name
-    assert_predicate(LIVE.push(n, fb.export, []), :positive?)
+    LIVE.push(n, fb.export, [])
     assert(LIVE.name_exists?(n))
     assert_predicate(LIVE.recent(n), :positive?)
     id = LIVE.recent(n)
@@ -86,15 +86,16 @@ class TestBazaRb < Minitest::Test
     fb.insert.foo = 'test-' * 10_000
     fb.insert
     baza = BazaRb.new(HOST, PORT, TOKEN, compress: false)
-    assert_predicate(baza.push(fake_name, fb.export, []), :positive?)
+    baza.push(fake_name, fb.export, [])
   end
 
   def test_live_durable_lock_unlock
     WebMock.enable_net_connect!
     skip('We are offline') unless we_are_online
     Dir.mktmpdir do |dir|
-      file = File.join(dir, "#{fake_name}.bin")
-      File.binwrite(file, 'hello, world!' * 100_000)
+      file = File.join(dir, 'before.bin')
+      before = 'hello, Джеф!' * 10
+      File.binwrite(file, before)
       jname = fake_name
       refute(LIVE.durable_find(jname, File.basename(file)))
       id = LIVE.durable_place(jname, file)
@@ -102,7 +103,12 @@ class TestBazaRb < Minitest::Test
       owner = fake_name
       LIVE.durable_lock(id, owner)
       LIVE.durable_load(id, file)
+      assert_equal(before, File.binread(file).force_encoding('UTF-8'))
+      after = 'привет, друг!'
+      File.binwrite(file, after)
       LIVE.durable_save(id, file)
+      LIVE.durable_load(id, file)
+      assert_equal(after, File.binread(file).force_encoding('UTF-8'))
       LIVE.durable_unlock(id, owner)
     end
   end
@@ -176,19 +182,29 @@ class TestBazaRb < Minitest::Test
 
   def test_durable_place
     WebMock.disable_net_connect!
-    stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')
-    stub_request(:post, 'https://example.org/durables/place').to_return(
-      status: 302, headers: { 'X-Zerocracy-DurableId' => '42' }
-    )
-    stub_request(:post, %r{https://example\.org/durables/42/lock})
-      .to_return(status: 302)
-    stub_request(:post, %r{https://example\.org/durables/42/unlock})
-      .to_return(status: 302)
-    stub_request(:put, 'https://example.org/durables/42').to_return(status: 200)
-    Dir.mktmpdir do |dir|
-      file = File.join(dir, 'test.bin')
-      File.binwrite(file, 'hello')
-      assert_equal(42, fake_baza.durable_place('simple', file))
+    [fake_baza(compress: true), fake_baza(compress: false)].each do |baza|
+      stub_request(:get, 'https://example.org/csrf').to_return(body: 'token')
+      stub_request(:post, 'https://example.org/durables/place').to_return(
+        status: 302, headers: { 'X-Zerocracy-DurableId' => '42' }
+      )
+      stub_request(:post, %r{https://example\.org/durables/42/lock})
+        .to_return(status: 302)
+      stub_request(:post, %r{https://example\.org/durables/42/unlock})
+        .to_return(status: 302)
+      stub_request(:put, 'https://example.org/durables/42')
+        .with(headers: { 'X-Zerocracy-Chunk' => '0' })
+        .to_return(status: 200)
+      stub_request(:put, 'https://example.org/durables/42')
+        .with(headers: { 'X-Zerocracy-Chunk' => '1' })
+        .to_return(status: 200)
+      stub_request(:put, 'https://example.org/durables/42')
+        .with(headers: { 'X-Zerocracy-Chunk' => '2' })
+        .to_return(status: 200)
+      Dir.mktmpdir do |dir|
+        file = File.join(dir, 'test.bin')
+        File.binwrite(file, 'hello, world!')
+        assert_equal(42, baza.durable_place('simple', file, chunk_size: 8))
+      end
     end
   end
 
@@ -662,8 +678,8 @@ class TestBazaRb < Minitest::Test
     req
   end
 
-  def fake_baza
-    BazaRb.new('example.org', 443, '000', loog: Loog::NULL)
+  def fake_baza(compress: true)
+    BazaRb.new('example.org', 443, '000', loog: Loog::NULL, compress:)
   end
 
   def fake_name
