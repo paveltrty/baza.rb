@@ -732,9 +732,9 @@ class BazaRb
   def download(uri, file)
     FileUtils.mkdir_p(File.dirname(file))
     FileUtils.rm_f(file)
+    FileUtils.touch(file)
     chunk = 0
     elapsed(@loog) do
-      pos = 0
       loop do
         request = Typhoeus::Request.new(
           uri.to_s,
@@ -742,7 +742,7 @@ class BazaRb
           headers: headers.merge(
             'Accept' => '*',
             'Accept-Encoding' => 'gzip',
-            'Range' => "bytes=#{pos}-"
+            'Range' => "bytes=#{File.size(file)}-"
           ),
           connecttimeout: @timeout,
           timeout: @timeout
@@ -782,8 +782,6 @@ class BazaRb
         _b, e = range.split('-')
         raise "Range is not valid (#{range.inspect})" unless e.match?(/^[0-9]+$/)
         len = ret.headers['Content-Length'].to_i
-        pos = e.to_i
-        pos += 1 unless len.zero?
         break if e.to_i == total.to_i - 1
         chunk += 1
         sleep(1) if len.zero?

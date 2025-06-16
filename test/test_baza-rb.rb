@@ -484,23 +484,15 @@ class TestBazaRb < Minitest::Test
     WebMock.disable_net_connect!
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'loaded.txt')
-      stub_request(:get, 'https://example.org:443/durables/42').to_return(
-        {
-          status: 206,
-          body: '',
-          headers: { 'Content-Range' => 'bytes 0-0/*', 'Content-Length' => '0' }
-        },
-        {
-          status: 206,
-          body: 'привет',
-          headers: { 'Content-Range' => 'bytes 0-11/25', 'Content-Length' => '12' }
-        },
-        {
-          status: 206,
-          body: " друг \xFF\xFE\x12",
-          headers: { 'Content-Range' => 'bytes 11-24/25', 'Content-Length' => '13' }
-        }
-      )
+      stub_request(:get, 'https://example.org:443/durables/42')
+        .with(headers: { 'Range' => 'bytes=0-' })
+        .to_return(status: 206, body: '', headers: { 'Content-Range' => 'bytes 0-0/*' })
+      stub_request(:get, 'https://example.org:443/durables/42')
+        .with(headers: { 'Range' => 'bytes=0-' })
+        .to_return(status: 206, body: 'привет', headers: { 'Content-Range' => 'bytes 0-11/25' })
+      stub_request(:get, 'https://example.org:443/durables/42')
+        .with(headers: { 'Range' => 'bytes=12-' })
+        .to_return(status: 206, body: " друг \xFF\xFE\x12", headers: { 'Content-Range' => 'bytes 12-24/25' })
       fake_baza.durable_load(42, file)
       assert_equal("привет друг \xFF\xFE\x12", File.read(file))
     end
@@ -720,7 +712,7 @@ class TestBazaRb < Minitest::Test
       )
       RandomPort::Pool::SINGLETON.acquire do |port|
         host = '127.0.0.1'
-        qbash("bundle exec ruby #{Shellwords.escape(app)} -p #{port}", log: Loog::VERBOSE, accept: nil) do
+        qbash("bundle exec ruby #{Shellwords.escape(app)} -p #{port}", log: Loog::NULL, accept: nil) do
           loop do
             break if Typhoeus::Request.get("http://#{host}:#{port}").code == 200
             sleep(0.1)
