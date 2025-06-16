@@ -322,6 +322,7 @@ class BazaRb
   # @raise [ServerFailure] If the save operation fails
   def durable_save(id, file, chunk_size: 1_000_000)
     raise 'The ID of the durable is nil' if id.nil?
+    raise 'The ID of the durable must be an Integer' unless id.is_a?(Integer)
     raise 'The ID of the durable must be a positive integer' unless id.positive?
     raise 'The "file" of the durable is nil' if file.nil?
     raise "The file '#{file}' is absent" unless File.exist?(file)
@@ -338,6 +339,7 @@ class BazaRb
   # @raise [ServerFailure] If the load operation fails
   def durable_load(id, file)
     raise 'The ID of the durable is nil' if id.nil?
+    raise 'The ID of the durable must be an Integer' unless id.is_a?(Integer)
     raise 'The ID of the durable must be a positive integer' unless id.positive?
     raise 'The "file" of the durable is nil' if file.nil?
     elapsed(@loog) do
@@ -353,6 +355,7 @@ class BazaRb
   # @raise [ServerFailure] If the lock operation fails
   def durable_lock(id, owner)
     raise 'The ID of the durable is nil' if id.nil?
+    raise 'The ID of the durable must be an Integer' unless id.is_a?(Integer)
     raise 'The ID of the durable must be a positive integer' unless id.positive?
     raise 'The "owner" of the lock is nil' if owner.nil?
     raise 'The "owner" of the lock may not be empty' if owner.empty?
@@ -372,6 +375,7 @@ class BazaRb
   # @raise [ServerFailure] If the unlock operation fails
   def durable_unlock(id, owner)
     raise 'The ID of the durable is nil' if id.nil?
+    raise 'The ID of the durable must be an Integer' unless id.is_a?(Integer)
     raise 'The ID of the durable must be a positive integer' unless id.positive?
     raise 'The "owner" of the lock is nil' if owner.nil?
     raise 'The "owner" of the lock may not be empty' if owner.empty?
@@ -783,6 +787,7 @@ class BazaRb
         raise "Range is not valid (#{range.inspect})" unless e.match?(/^[0-9]+$/)
         len = ret.headers['Content-Length'].to_i
         break if e.to_i == total.to_i - 1
+        break if total == '0'
         chunk += 1
         sleep(1) if len.zero?
       end

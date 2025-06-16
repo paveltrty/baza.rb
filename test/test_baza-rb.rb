@@ -480,6 +480,18 @@ class TestBazaRb < Minitest::Test
     end
   end
 
+  def test_durable_load_empty_content
+    WebMock.disable_net_connect!
+    Dir.mktmpdir do |dir|
+      file = File.join(dir, 'loaded.txt')
+      stub_request(:get, 'https://example.org:443/durables/42')
+        .with(headers: { 'X-Zerocracy-Token' => '000' })
+        .to_return(status: 206, body: '', headers: { 'Content-Range' => 'bytes 0-0/0' })
+      fake_baza.durable_load(42, file)
+      assert_equal('', File.read(file))
+    end
+  end
+
   def test_durable_load_in_chunks
     WebMock.disable_net_connect!
     Dir.mktmpdir do |dir|
