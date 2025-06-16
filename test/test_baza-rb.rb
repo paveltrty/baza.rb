@@ -459,7 +459,7 @@ class TestBazaRb < Minitest::Test
     WebMock.disable_net_connect!
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'test.txt')
-      File.write(file, 'test content')
+      File.write(file, "\x00\x00 hi, dude! \x00\xFF\xFE\x12")
       stub_request(:put, 'https://example.org:443/durables/42')
         .with(headers: { 'X-Zerocracy-Token' => '000' })
         .to_return(status: 200)
@@ -471,11 +471,12 @@ class TestBazaRb < Minitest::Test
     WebMock.disable_net_connect!
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'loaded.txt')
+      data = "\x00\xE0 привет \x00\x00\xFF\xFE\x12"
       stub_request(:get, 'https://example.org:443/durables/42')
         .with(headers: { 'X-Zerocracy-Token' => '000' })
-        .to_return(status: 200, body: 'loaded content', headers: {})
+        .to_return(status: 200, body: data, headers: {})
       fake_baza.durable_load(42, file)
-      assert_equal('loaded content', File.read(file))
+      assert_equal(data, File.read(file))
     end
   end
 
@@ -484,12 +485,24 @@ class TestBazaRb < Minitest::Test
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'loaded.txt')
       stub_request(:get, 'https://example.org:443/durables/42').to_return(
-        { status: 206, body: '', headers: { 'Content-Range' => 'bytes 0-0/*', 'Content-Length' => '0' } },
-        { status: 206, body: 'привет', headers: { 'Content-Range' => 'bytes 0-5/11', 'Content-Length' => '5' } },
-        { status: 206, body: ' друг', headers: { 'Content-Range' => 'bytes 6-10/11', 'Content-Length' => '5' } }
+        {
+          status: 206,
+          body: '',
+          headers: { 'Content-Range' => 'bytes 0-0/*', 'Content-Length' => '0' }
+        },
+        {
+          status: 206,
+          body: 'привет',
+          headers: { 'Content-Range' => 'bytes 0-11/25', 'Content-Length' => '12' }
+        },
+        {
+          status: 206,
+          body: " друг \xFF\xFE\x12",
+          headers: { 'Content-Range' => 'bytes 11-24/25', 'Content-Length' => '13' }
+        }
       )
       fake_baza.durable_load(42, file)
-      assert_equal('привет друг', File.read(file))
+      assert_equal("привет друг \xFF\xFE\x12", File.read(file))
     end
   end
 
@@ -681,7 +694,7 @@ class TestBazaRb < Minitest::Test
       with_sinatra_server do |baza|
         file = File.join(dir, 'x.txt')
         baza.durable_load(42, file)
-        assert_equal('Hello, world!', File.read(file))
+        assert_equal("Hello, \xFF\xFE\x12!", File.read(file))
       end
     end
   end
@@ -701,7 +714,7 @@ class TestBazaRb < Minitest::Test
           'I am alive'
         end
         get '/durables/42' do
-          'Hello, world!'
+          \"Hello, \\xFF\\xFE\\x12!\"
         end
         "
       )
