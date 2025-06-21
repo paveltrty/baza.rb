@@ -7,6 +7,7 @@ require 'factbase'
 require 'loog'
 require 'net/http'
 require 'qbash'
+require 'online'
 require 'random-port'
 require 'securerandom'
 require 'socket'
@@ -36,7 +37,7 @@ class TestBazaRb < Minitest::Test
 
   def test_live_full_cycle
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
+    skip('We are offline') unless we_are_online?
     fb = Factbase.new
     fb.insert.foo = 'test-' * 10_000
     fb.insert
@@ -62,13 +63,13 @@ class TestBazaRb < Minitest::Test
 
   def test_live_whoami
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
+    skip('We are offline') unless we_are_online?
     refute_nil(LIVE.whoami)
   end
 
   def test_live_balance
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
+    skip('We are offline') unless we_are_online?
     z = LIVE.balance
     refute_nil(z)
     assert(z.to_f)
@@ -76,13 +77,13 @@ class TestBazaRb < Minitest::Test
 
   def test_live_fee_payment
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
+    skip('We are offline') unless we_are_online?
     refute_nil(LIVE.fee('unknown', 0.007, 'just for fun', 777))
   end
 
   def test_live_push_no_compression
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
+    skip('We are offline') unless we_are_online?
     fb = Factbase.new
     fb.insert.foo = 'test-' * 10_000
     fb.insert
@@ -92,7 +93,7 @@ class TestBazaRb < Minitest::Test
 
   def test_live_durable_lock_unlock
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
+    skip('We are offline') unless we_are_online?
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'before.bin')
       before = 'hello, Джеф!' * 10
@@ -116,7 +117,7 @@ class TestBazaRb < Minitest::Test
 
   def test_live_enter_valve
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
+    skip('We are offline') unless we_are_online?
     r = 'something'
     n = fake_name
     badge = fake_name
@@ -126,7 +127,7 @@ class TestBazaRb < Minitest::Test
 
   def test_get_csrf_token
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
+    skip('We are offline') unless we_are_online?
     assert_operator(LIVE.csrf.length, :>, 10)
   end
 
@@ -367,7 +368,7 @@ class TestBazaRb < Minitest::Test
 
   def test_real_http
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
+    skip('We are offline') unless we_are_online?
     req =
       with_http_server(200, 'yes') do |baza|
         baza.name_exists?('simple')
@@ -377,7 +378,7 @@ class TestBazaRb < Minitest::Test
 
   def test_push_with_meta
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
+    skip('We are offline') unless we_are_online?
     req =
       with_http_server(200, 'yes') do |baza|
         baza.push('simple', 'hello, world!', ['boom!', 'хей!'])
@@ -387,7 +388,7 @@ class TestBazaRb < Minitest::Test
 
   def test_push_with_big_meta
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
+    skip('We are offline') unless we_are_online?
     req =
       with_http_server(200, 'yes') do |baza|
         baza.push(
@@ -405,7 +406,7 @@ class TestBazaRb < Minitest::Test
 
   def test_push_compressed_content
     WebMock.enable_net_connect!
-    skip('We are offline') unless we_are_online
+    skip('We are offline') unless we_are_online?
     fb = Factbase.new
     fb.insert.foo = 'test-' * 10_000
     req =
@@ -770,20 +771,8 @@ class TestBazaRb < Minitest::Test
     "fake#{SecureRandom.hex(8)}"
   end
 
-  def we_are_online
-    $we_are_online ||= !ARGV.include?('--offline') && uri_is_alive('https://www.zerocracy.com')
+  def we_are_online?
+    $we_are_online ||= !ARGV.include?('--offline') && online?
   end
   # rubocop:enable Style/GlobalVars
-
-  # Checks whether this URI is alive (HTTP status is 200).
-  def uri_is_alive(uri)
-    Timeout.timeout(4) do
-      require 'net/http'
-      WebMock.enable_net_connect!
-      Net::HTTP.get_response(URI(uri)).is_a?(Net::HTTPSuccess)
-    rescue Timeout::Error, Timeout::ExitException, Socket::ResolutionError, Errno::EHOSTUNREACH, Errno::EINVAL
-      puts "Ping failed to #{uri}"
-      false
-    end
-  end
 end

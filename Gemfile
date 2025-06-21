@@ -10,6 +10,7 @@ gem 'base64', '~>0.3', require: false
 gem 'factbase', '~>0.11', require: false
 gem 'minitest', '~>5.25', require: false
 gem 'minitest-reporters', '~>1.7', require: false
+gem 'online', '~>0.0', require: false
 gem 'os', '~>1.1', require: false
 gem 'puma', '~>6.6', require: false
 gem 'qbash', '~>0.4', require: false
