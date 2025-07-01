@@ -529,7 +529,7 @@ class BazaRb
   # @return [String] The cached result or newly computed result from the block
   # @raise [ServerFailure] If the valve operation fails
   def enter(name, badge, why, job)
-    elapsed(@loog, intro: "Entered valve #{badge} to #{name}") do
+    elapsed(@loog, good: "Entered valve #{badge} to #{name}") do
       retry_it do
         ret = get(home.append('valves').append('result').add(badge:), [200, 204])
         return ret.body if ret.code == 200
