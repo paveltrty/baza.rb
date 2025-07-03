@@ -31,6 +31,9 @@ require_relative 'baza-rb/version'
 # Copyright:: Copyright (c) 2024-2025 Yegor Bugayenko
 # License:: MIT
 class BazaRb
+  # How big are the chunks we send, by default, in bytes:
+  DEFAULT_CHUNK_SIZE = 4_000_000
+
   # When the server failed (503).
   class ServerFailure < StandardError; end
 
@@ -99,7 +102,7 @@ class BazaRb
   # @param [Array<String>] meta List of metadata strings to attach to the job
   # @param [Integer] chunk_size Maximum size of one chunk
   # @raise [ServerFailure] If the push operation fails
-  def push(name, data, meta, chunk_size: 1_000_000)
+  def push(name, data, meta, chunk_size: DEFAULT_CHUNK_SIZE)
     raise 'The "name" of the job is nil' if name.nil?
     raise 'The "name" of the job may not be empty' if name.empty?
     raise 'The "data" of the job is nil' if data.nil?
@@ -287,7 +290,7 @@ class BazaRb
   # @param [Integer] chunk_size Maximum size of one chunk
   # @return [Integer] The ID of the created durable
   # @raise [ServerFailure] If the upload fails
-  def durable_place(jname, file, chunk_size: 1_000_000)
+  def durable_place(jname, file, chunk_size: DEFAULT_CHUNK_SIZE)
     raise 'The "jname" of the durable is nil' if jname.nil?
     raise 'The "jname" of the durable may not be empty' if jname.empty?
     raise 'The "file" of the durable is nil' if file.nil?
@@ -320,7 +323,7 @@ class BazaRb
   # @param [String] file The file to upload
   # @param [Integer] chunk_size Maximum size of one chunk
   # @raise [ServerFailure] If the save operation fails
-  def durable_save(id, file, chunk_size: 1_000_000)
+  def durable_save(id, file, chunk_size: DEFAULT_CHUNK_SIZE)
     raise 'The ID of the durable is nil' if id.nil?
     raise 'The ID of the durable must be an Integer' unless id.is_a?(Integer)
     raise 'The ID of the durable must be a positive integer' unless id.positive?
@@ -803,7 +806,7 @@ class BazaRb
   # @param [Hash] extra Hash of extra HTTP headers to include
   # @param [Integer] chunk_size Maximum size of each chunk in bytes
   # @raise [ServerFailure] If the upload fails
-  def upload(uri, file, extra = {}, chunk_size: 1_000_000)
+  def upload(uri, file, extra = {}, chunk_size: DEFAULT_CHUNK_SIZE)
     params = {
       connecttimeout: @timeout,
       timeout: @timeout,
