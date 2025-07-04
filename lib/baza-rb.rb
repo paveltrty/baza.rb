@@ -32,7 +32,7 @@ require_relative 'baza-rb/version'
 # License:: MIT
 class BazaRb
   # How big are the chunks we send, by default, in bytes:
-  DEFAULT_CHUNK_SIZE = 4_000_000
+  DEFAULT_CHUNK_SIZE = 1_000_000
 
   # When the server failed (503).
   class ServerFailure < StandardError; end
