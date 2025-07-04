@@ -31,7 +31,10 @@ require_relative 'baza-rb/version'
 # Copyright:: Copyright (c) 2024-2025 Yegor Bugayenko
 # License:: MIT
 class BazaRb
-  # How big are the chunks we send, by default, in bytes:
+  # How big are the chunks we send, by default, in bytes.
+  # Numbers larger than 1Mb may lead to problems with the server,
+  # since sending time will be too long and the server may drop
+  # connections. Better keep it as is: 1Mb.
   DEFAULT_CHUNK_SIZE = 1_000_000
 
   # When the server failed (503).
