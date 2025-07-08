@@ -644,6 +644,23 @@ class BazaRb
     with_retries(max_tries: @retries, rescue: TimedOut, &)
   end
 
+  # Execute a block with retries on 429 status codes.
+  #
+  # @yield The block to execute with retries
+  # @return [Object] The result of the block execution
+  def retry_if_server_busy(&)
+    attempt = 0
+    loop do
+      ret = yield
+      if ret.code == 429 && attempt < 3
+        attempt += 1
+        sleep(2**attempt)
+        next
+      end
+      return ret
+    end
+  end
+
   # Check the HTTP response and return it.
   #
   # @param [Typhoeus::Response] ret The response
@@ -701,12 +718,14 @@ class BazaRb
   def get(uri, allowed = [200])
     retry_it do
       checked(
-        Typhoeus::Request.get(
-          uri.to_s,
-          headers:,
-          connecttimeout: @timeout,
-          timeout: @timeout
-        ),
+        retry_if_server_busy do
+          Typhoeus::Request.get(
+            uri.to_s,
+            headers:,
+            connecttimeout: @timeout,
+            timeout: @timeout
+          )
+        end,
         allowed
       )
     end

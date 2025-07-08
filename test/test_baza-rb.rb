@@ -693,6 +693,18 @@ class TestBazaRb < Minitest::Test
     baza.push('test', 'data', [])
   end
 
+  def test_get_request_retries_on_429_status_code
+    WebMock.disable_net_connect!
+    stub_request(:get, 'https://example.org:443/whoami')
+      .with(headers: { 'X-Zerocracy-Token' => '000' })
+      .to_return(status: 429)
+      .times(3)
+    stub_request(:get, 'https://example.org:443/whoami')
+      .with(headers: { 'X-Zerocracy-Token' => '000' })
+      .to_return(status: 200, body: 'testuser')
+    assert_equal('testuser', fake_baza.whoami)
+  end
+
   def test_durable_load_from_sinatra
     WebMock.enable_net_connect!
     Dir.mktmpdir do |dir|
