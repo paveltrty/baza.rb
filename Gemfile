@@ -10,7 +10,6 @@ gem 'base64', '~>0.3', require: false
 gem 'factbase', '~>0.11', require: false
 gem 'minitest', '~>5.25', require: false
 gem 'minitest-reporters', '~>1.7', require: false
-gem 'nio4r', '2.7.4', require: false # GPL
 gem 'online', '~>0.0', require: false
 gem 'os', '~>1.1', require: false
 gem 'puma', '~>6.6', require: false
@@ -26,7 +25,7 @@ gem 'rubocop-rake', '~>0.7', require: false
 gem 'simplecov', '~>0.22', require: false
 gem 'simplecov-cobertura', '~>2.1', require: false
 gem 'sinatra', '~>4.1', require: false
-gem 'wait_for', '0.1.1', require: false # Unlicensed
+gem 'wait_for', '~>0.1', require: false
 gem 'webmock', '~>3.24', require: false
 gem 'webrick', '~>1.9', require: false
 gem 'yard', '~>0.9', require: false
