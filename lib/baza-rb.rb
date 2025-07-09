@@ -644,15 +644,16 @@ class BazaRb
     with_retries(max_tries: @retries, rescue: TimedOut, &)
   end
 
-  # Execute a block with retries on 429 status codes.
+  # Execute a block with retries on 429 and 500 status codes.
   #
   # @yield The block to execute with retries
   # @return [Object] The result of the block execution
   def retry_if_server_busy(&)
+    allowed = [429, 500]
     attempt = 0
     loop do
       ret = yield
-      if ret.code == 429 && attempt < 3
+      if allowed.include?(ret.code) && attempt < 4
         attempt += 1
         sleep(2**attempt)
         next
@@ -691,7 +692,7 @@ class BazaRb
     when 500
       msg +=
         ", most probably it's an internal error on the server, " \
-        'please report this to https://github.com/zerocracy/baza'
+        'please report this to https://github.com/zerocracy/baza.rb'
     when 503
       msg +=
         ", most probably it's an internal error on the server (#{headers['X-Zerocracy-Failure'].inspect}), " \
