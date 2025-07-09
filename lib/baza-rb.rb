@@ -653,9 +653,11 @@ class BazaRb
     attempt = 0
     loop do
       ret = yield
-      if allowed.include?(ret.code) && attempt < 4
+      if allowed.include?(ret.code) && attempt < 5
         attempt += 1
-        sleep(2**attempt)
+        seconds = 2**attempt
+        @loog.info("Now, will sleep for #{seconds} and try again...")
+        sleep(seconds)
         next
       end
       return ret
