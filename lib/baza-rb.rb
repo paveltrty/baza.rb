@@ -644,19 +644,37 @@ class BazaRb
     with_retries(max_tries: @retries, rescue: TimedOut, &)
   end
 
-  # Execute a block with retries on 429 and 500 status codes.
+  # Execute a block with retries on 429 status codes.
   #
   # @yield The block to execute with retries
   # @return [Object] The result of the block execution
   def retry_if_server_busy(&)
-    allowed = [429, 500]
     attempt = 0
     loop do
       ret = yield
-      if allowed.include?(ret.code) && attempt < 5
+      if ret.code == 429 && attempt < 5
         attempt += 1
         seconds = 2**attempt
-        @loog.info("Now, will sleep for #{seconds} and try again...")
+        @loog.info("Server seems to be busy, will sleep for #{seconds} and try again...")
+        sleep(seconds)
+        next
+      end
+      return ret
+    end
+  end
+
+  # Execute a block with retries on 500 status codes.
+  #
+  # @yield The block to execute with retries
+  # @return [Object] The result of the block execution
+  def retry_if_server_failed(&)
+    attempt = 0
+    loop do
+      ret = yield
+      if ret.code >= 500 && attempt < 5
+        attempt += 1
+        seconds = 2**attempt
+        @loog.info("Server seems to be in trouble, will sleep for #{seconds} and try again...")
         sleep(seconds)
         next
       end
@@ -721,13 +739,15 @@ class BazaRb
   def get(uri, allowed = [200])
     retry_it do
       checked(
-        retry_if_server_busy do
-          Typhoeus::Request.get(
-            uri.to_s,
-            headers:,
-            connecttimeout: @timeout,
-            timeout: @timeout
-          )
+        retry_if_server_failed do
+          retry_if_server_busy do
+            Typhoeus::Request.get(
+              uri.to_s,
+              headers:,
+              connecttimeout: @timeout,
+              timeout: @timeout
+            )
+          end
         end,
         allowed
       )
@@ -744,13 +764,15 @@ class BazaRb
   def post(uri, params, allowed = [302])
     retry_it do
       checked(
-        Typhoeus::Request.post(
-          uri.to_s,
-          body: params.merge('_csrf' => csrf),
-          headers:,
-          connecttimeout: @timeout,
-          timeout: @timeout
-        ),
+        retry_if_server_failed do
+          Typhoeus::Request.post(
+            uri.to_s,
+            body: params.merge('_csrf' => csrf),
+            headers:,
+            connecttimeout: @timeout,
+            timeout: @timeout
+          )
+        end,
         allowed
       )
     end
