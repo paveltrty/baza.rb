@@ -655,7 +655,7 @@ class BazaRb
       if ret.code == 429 && attempt < 5
         attempt += 1
         seconds = 2**attempt
-        @loog.info("Server seems to be busy, will sleep for #{seconds} and try again...")
+        @loog.info("Server seems to be busy, will sleep for #{seconds} (attempt no.#{attempt})...")
         sleep(seconds)
         next
       end
@@ -674,7 +674,7 @@ class BazaRb
       if ret.code >= 500 && attempt < 5
         attempt += 1
         seconds = 2**attempt
-        @loog.info("Server seems to be in trouble, will sleep for #{seconds} and try again...")
+        @loog.info("Server seems to be in trouble, will sleep for #{seconds} (attempt no.#{attempt})...")
         sleep(seconds)
         next
       end
