@@ -59,7 +59,7 @@ class BazaRb
   # @param [Integer] retries Number of retries on connection failure (default: 3)
   # @param [Loog] loog The logging facility (default: Loog::NULL)
   # @param [Boolean] compress Whether to use GZIP compression for requests/responses (default: true)
-  def initialize(host, port, token, ssl: true, timeout: 30, retries: 3, loog: Loog::NULL, compress: true)
+  def initialize(host, port, token, ssl: true, timeout: 30, retries: 5, loog: Loog::NULL, compress: true)
     @host = host
     @port = port
     @ssl = ssl
@@ -652,7 +652,7 @@ class BazaRb
     attempt = 0
     loop do
       ret = yield
-      if ret.code == 429 && attempt < 5
+      if ret.code == 429 && attempt < @retries
         attempt += 1
         seconds = 2**attempt
         @loog.info("Server seems to be busy, will sleep for #{seconds} (attempt no.#{attempt})...")
@@ -671,7 +671,7 @@ class BazaRb
     attempt = 0
     loop do
       ret = yield
-      if ret.code >= 500 && attempt < 5
+      if ret.code >= 500 && attempt < @retries
         attempt += 1
         seconds = 2**attempt
         @loog.info("Server seems to be in trouble, will sleep for #{seconds} (attempt no.#{attempt})...")
@@ -790,25 +790,31 @@ class BazaRb
     chunk = 0
     elapsed(@loog) do
       loop do
-        request = Typhoeus::Request.new(
-          uri.to_s,
-          method: :get,
-          headers: headers.merge(
-            'Accept' => '*',
-            'Accept-Encoding' => 'gzip',
-            'Range' => "bytes=#{File.size(file)}-"
-          ),
-          connecttimeout: @timeout,
-          timeout: @timeout
-        )
         slice = ''
-        request.on_body do |data|
-          slice += data
+        ret = nil
+        retry_if_server_busy do
+          retry_if_server_failed do
+            slice = ''
+            request = Typhoeus::Request.new(
+              uri.to_s,
+              method: :get,
+              headers: headers.merge(
+                'Accept' => '*',
+                'Accept-Encoding' => 'gzip',
+                'Range' => "bytes=#{File.size(file)}-"
+              ),
+              connecttimeout: @timeout,
+              timeout: @timeout
+            )
+            request.on_body do |data|
+              slice += data
+            end
+            retry_it do
+              request.run
+            end
+            ret = request.response
+          end
         end
-        retry_it do
-          request.run
-        end
-        ret = request.response
         msg = [
           "GET #{uri.to_uri.path} #{ret.code}",
           "#{slice.bytesize} bytes",
@@ -882,10 +888,14 @@ class BazaRb
         ret =
           retry_it do
             checked(
-              Typhoeus::Request.put(
-                uri.to_s,
-                params
-              )
+              retry_if_server_failed do
+                retry_if_server_busy do
+                  Typhoeus::Request.put(
+                    uri.to_s,
+                    params
+                  )
+                end
+              end
             )
           end
         sent += params[:body].bytesize

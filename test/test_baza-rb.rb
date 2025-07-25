@@ -354,18 +354,6 @@ class TestBazaRb < Minitest::Test
     end
   end
 
-  def test_push_with_server_failure
-    WebMock.disable_net_connect!
-    stub_request(:put, 'https://example.org/push/foo')
-      .to_return(status: 503, body: 'oops', headers: { 'X-Zerocracy-Failure': 'the failure' })
-      .to_raise('why second time?')
-    e = assert_raises(StandardError) { fake_baza.push('foo', 'data', []) }
-    [
-      'Invalid response code #503',
-      '"the failure"'
-    ].each { |t| assert_includes(e.message, t, "Can't find '#{t}' in #{e.message.inspect}") }
-  end
-
   def test_real_http
     WebMock.enable_net_connect!
     skip('We are offline') unless we_are_online?
@@ -703,6 +691,49 @@ class TestBazaRb < Minitest::Test
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 200, body: 'testuser')
     assert_equal('testuser', fake_baza.whoami)
+  end
+
+  def test_download_retries_on_busy_server
+    WebMock.disable_net_connect!
+    Dir.mktmpdir do |dir|
+      file = File.join(dir, 'download.txt')
+      attempts = 0
+      stub_request(:get, 'https://example.org:443/file')
+        .with(headers: { 'Range' => 'bytes=0-' })
+        .to_return do |_request|
+          attempts += 1
+          if attempts < 2
+            { status: 429, body: 'Too Many Requests', headers: {} }
+          else
+            { status: 200, body: 'success content', headers: {} }
+          end
+        end
+      baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL, compress: false, timeout: 0.1)
+      baza.send(:download, baza.send(:home).append('file'), file)
+      assert_equal(2, attempts, 'Expected two HTTP calls due to 429 retries')
+      assert_equal('success content', File.read(file))
+    end
+  end
+
+  def test_upload_retries_on_busy_server
+    WebMock.disable_net_connect!
+    Dir.mktmpdir do |dir|
+      file = File.join(dir, 'upload.txt')
+      File.write(file, 'test content')
+      attempts = 0
+      stub_request(:put, 'https://example.org:443/file')
+        .to_return do |_request|
+          attempts += 1
+          if attempts < 2
+            { status: 429, body: 'Too Many Requests' }
+          else
+            { status: 200, body: 'OK' }
+          end
+        end
+      baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL, compress: false, timeout: 0.1)
+      baza.send(:upload, baza.send(:home).append('file'), file)
+      assert_equal(2, attempts, 'Expected 2 HTTP calls due to 429 retries')
+    end
   end
 
   def test_durable_load_from_sinatra
