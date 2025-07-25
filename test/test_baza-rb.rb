@@ -708,7 +708,7 @@ class TestBazaRb < Minitest::Test
             { status: 200, body: 'success content', headers: {} }
           end
         end
-      baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL, compress: false, timeout: 0.1)
+      baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL, compress: false, timeout: 0.1, pause: 0)
       baza.send(:download, baza.send(:home).append('file'), file)
       assert_equal(2, attempts, 'Expected two HTTP calls due to 429 retries')
       assert_equal('success content', File.read(file))
@@ -730,7 +730,7 @@ class TestBazaRb < Minitest::Test
             { status: 200, body: 'OK' }
           end
         end
-      baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL, compress: false, timeout: 0.1)
+      baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL, compress: false, timeout: 0.1, pause: 0)
       baza.send(:upload, baza.send(:home).append('file'), file)
       assert_equal(2, attempts, 'Expected 2 HTTP calls due to 429 retries')
     end

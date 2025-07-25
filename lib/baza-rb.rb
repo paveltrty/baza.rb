@@ -57,9 +57,10 @@ class BazaRb
   # @param [Boolean] ssl Whether to use SSL/HTTPS (default: true)
   # @param [Float] timeout Connection and request timeout in seconds (default: 30)
   # @param [Integer] retries Number of retries on connection failure (default: 3)
+  # @param [Integer] pause The factor on pause (<1 means faster, >1 means slower)
   # @param [Loog] loog The logging facility (default: Loog::NULL)
   # @param [Boolean] compress Whether to use GZIP compression for requests/responses (default: true)
-  def initialize(host, port, token, ssl: true, timeout: 30, retries: 5, loog: Loog::NULL, compress: true)
+  def initialize(host, port, token, ssl: true, timeout: 30, retries: 5, pause: 1, loog: Loog::NULL, compress: true)
     @host = host
     @port = port
     @ssl = ssl
@@ -67,6 +68,7 @@ class BazaRb
     @timeout = timeout
     @loog = loog
     @retries = retries
+    @pause = pause
     @compress = compress
   end
 
@@ -654,7 +656,7 @@ class BazaRb
       ret = yield
       if ret.code == 429 && attempt < @retries
         attempt += 1
-        seconds = 2**attempt
+        seconds = @pause * (2**attempt)
         @loog.info("Server seems to be busy, will sleep for #{seconds} (attempt no.#{attempt})...")
         sleep(seconds)
         next
@@ -673,7 +675,7 @@ class BazaRb
       ret = yield
       if ret.code >= 500 && attempt < @retries
         attempt += 1
-        seconds = 2**attempt
+        seconds = @pause * (2**attempt)
         @loog.info("Server seems to be in trouble, will sleep for #{seconds} (attempt no.#{attempt})...")
         sleep(seconds)
         next
