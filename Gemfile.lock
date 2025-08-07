@@ -30,9 +30,9 @@ GEM
       rexml
     decoor (0.1.0)
     docile (1.4.1)
-    elapsed (0.1.0)
-      loog (> 0)
-      tago (> 0)
+    elapsed (0.2.0)
+      loog (~> 0.6)
+      tago (~> 0.1)
     ellipsized (0.3.0)
     ethon (0.16.0)
       ffi (>= 1.15.0)
@@ -47,7 +47,7 @@ GEM
       others (~> 0.0)
       tago (~> 0.0)
       yaml (~> 0.3)
-    faraday (2.13.2)
+    faraday (2.13.4)
       faraday-net_http (>= 2.0, < 3.5)
       json
       logger
@@ -78,7 +78,7 @@ GEM
       minitest (>= 5.0)
       ruby-progressbar
     multipart-post (2.4.1)
-    mustermann (3.0.3)
+    mustermann (3.0.4)
       ruby2_keywords (~> 0.0.1)
     net-http (0.6.0)
       uri
@@ -123,7 +123,7 @@ GEM
     rake (13.3.0)
     random-port (0.7.5)
       tago (> 0)
-    regexp_parser (2.10.0)
+    regexp_parser (2.11.0)
     retries (0.0.5)
     rexml (3.4.1)
     rubocop (1.79.2)
@@ -160,7 +160,7 @@ GEM
     simplecov-cobertura (3.0.0)
       rexml
       simplecov (~> 0.19)
-    simplecov-html (0.13.1)
+    simplecov-html (0.13.2)
     simplecov_json_formatter (0.1.4)
     sinatra (4.1.1)
       logger (>= 1.6.0)
