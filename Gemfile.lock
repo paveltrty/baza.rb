@@ -123,7 +123,7 @@ GEM
     rake (13.3.0)
     random-port (0.7.5)
       tago (> 0)
-    regexp_parser (2.11.0)
+    regexp_parser (2.11.1)
     retries (0.0.5)
     rexml (3.4.1)
     rubocop (1.79.2)
