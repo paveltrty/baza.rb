@@ -825,7 +825,10 @@ class BazaRb
           ("ranged as #{ret.headers['Content-Range'].inspect}" if ret.headers['Content-Range'])
         ]
         ret = checked(ret, [200, 206, 204, 302])
-        next if blanks.include?(ret.code)
+        if blanks.include?(ret.code)
+          sleep(2)
+          next
+        end
         if ret.headers['Content-Encoding'] == 'gzip'
           begin
             slice = unzip(slice)
