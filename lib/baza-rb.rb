@@ -299,7 +299,9 @@ class BazaRb
     raise 'The "jname" of the durable may not be empty' if jname.empty?
     raise 'The "file" of the durable is nil' if file.nil?
     raise "The file '#{file}' is absent" unless File.exist?(file)
-    raise "The file '#{file}' is too big for durable_place(), use durable_save() instead" if File.size(file) > 1024
+    if File.size(file) > 1024
+      raise "The file '#{file}' is too big (#{File.size(file)} bytes) for durable_place(), use durable_save() instead"
+    end
     id = nil
     Tempfile.open do |f|
       File.write(f.path, 'placeholder')
