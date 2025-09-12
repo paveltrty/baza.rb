@@ -308,20 +308,17 @@ class BazaRb
       raise "The file '#{file}' is too big (#{File.size(file)} bytes) for durable_place(), use durable_save() instead"
     end
     id = nil
-    Tempfile.open do |f|
-      File.write(f.path, 'placeholder')
-      elapsed(@loog) do
-        ret = post(
-          home.append('durables').append('place'),
-          {
-            'jname' => jname,
-            'file' => File.basename(file),
-            'zip' => File.open(f, 'rb')
-          }
-        )
-        id = ret.headers['X-Zerocracy-DurableId'].to_i
-        throw :"Durable ##{id} (#{file}, #{File.size(file)} bytes) placed for job \"#{jname}\" at #{@host}"
-      end
+    elapsed(@loog) do
+      ret = post(
+        home.append('durables').append('place'),
+        {
+          'jname' => jname,
+          'file' => File.basename(file),
+          'zip' => File.open(file, 'rb')
+        }
+      )
+      id = ret.headers['X-Zerocracy-DurableId'].to_i
+      throw :"Durable ##{id} (#{file}, #{File.size(file)} bytes) placed for job \"#{jname}\" at #{@host}"
     end
     id
   end
