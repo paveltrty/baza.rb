@@ -290,6 +290,11 @@ class BazaRb
 
   # Place a single durable file on the server.
   #
+  # The file provided will only be uploaded to the server if the durable
+  # is currently absent. If the durable is present, the file will be
+  # ignored. It is expected to use only small placeholder files, not real
+  # data.
+  #
   # @param [String] jname The name of the job on the server
   # @param [String] file The path to the file to upload
   # @return [Integer] The ID of the created durable
