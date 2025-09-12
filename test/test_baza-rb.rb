@@ -205,7 +205,7 @@ class TestBazaRb < Minitest::Test
       Dir.mktmpdir do |dir|
         file = File.join(dir, 'test.bin')
         File.binwrite(file, 'hello, world!')
-        assert_equal(42, baza.durable_place('simple', file, chunk_size: 8))
+        assert_equal(42, baza.durable_place('simple', file))
       end
     end
   end

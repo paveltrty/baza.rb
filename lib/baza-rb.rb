@@ -290,35 +290,36 @@ class BazaRb
 
   # Place a single durable file on the server.
   #
+  # The file provided will only be uploaded to the server if the durable
+  # is currently absent. If the durable is present, the file will be
+  # ignored. It is expected to use only small placeholder files, not real
+  # data.
+  #
   # @param [String] jname The name of the job on the server
   # @param [String] file The path to the file to upload
-  # @param [Integer] chunk_size Maximum size of one chunk
   # @return [Integer] The ID of the created durable
   # @raise [ServerFailure] If the upload fails
-  def durable_place(jname, file, chunk_size: DEFAULT_CHUNK_SIZE)
+  def durable_place(jname, file)
     raise 'The "jname" of the durable is nil' if jname.nil?
     raise 'The "jname" of the durable may not be empty' if jname.empty?
     raise 'The "file" of the durable is nil' if file.nil?
     raise "The file '#{file}' is absent" unless File.exist?(file)
-    id = nil
-    Tempfile.open do |f|
-      File.write(f.path, 'placeholder')
-      elapsed(@loog) do
-        ret = post(
-          home.append('durables').append('place'),
-          {
-            'jname' => jname,
-            'file' => File.basename(file),
-            'zip' => File.open(f, 'rb')
-          }
-        )
-        id = ret.headers['X-Zerocracy-DurableId'].to_i
-        throw :"Durable ##{id} (#{file}, #{File.size(file)} bytes) placed for job \"#{jname}\" at #{@host}"
-      end
+    if File.size(file) > 1024
+      raise "The file '#{file}' is too big (#{File.size(file)} bytes) for durable_place(), use durable_save() instead"
     end
-    durable_lock(id, user_agent)
-    durable_save(id, file, chunk_size:)
-    durable_unlock(id, user_agent)
+    id = nil
+    elapsed(@loog) do
+      ret = post(
+        home.append('durables').append('place'),
+        {
+          'jname' => jname,
+          'file' => File.basename(file),
+          'zip' => File.open(file, 'rb')
+        }
+      )
+      id = ret.headers['X-Zerocracy-DurableId'].to_i
+      throw :"Durable ##{id} (#{file}, #{File.size(file)} bytes) placed for job \"#{jname}\" at #{@host}"
+    end
     id
   end
 
