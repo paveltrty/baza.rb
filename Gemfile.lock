@@ -3,7 +3,7 @@ PATH
   specs:
     baza.rb (0.0.0)
       backtrace (~> 0.4)
-      elapsed (~> 0.0)
+      elapsed (~> 0.2)
       faraday (~> 2.13)
       faraday-http-cache (~> 2.5)
       faraday-multipart (~> 1.1)
@@ -11,7 +11,7 @@ PATH
       iri (~> 0.11)
       loog (~> 0.6)
       retries (~> 0.0)
-      tago (~> 0.0)
+      tago (~> 0.2)
       typhoeus (~> 1.4)
 
 GEM
