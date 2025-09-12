@@ -292,14 +292,14 @@ class BazaRb
   #
   # @param [String] jname The name of the job on the server
   # @param [String] file The path to the file to upload
-  # @param [Integer] chunk_size Maximum size of one chunk
   # @return [Integer] The ID of the created durable
   # @raise [ServerFailure] If the upload fails
-  def durable_place(jname, file, chunk_size: DEFAULT_CHUNK_SIZE)
+  def durable_place(jname, file)
     raise 'The "jname" of the durable is nil' if jname.nil?
     raise 'The "jname" of the durable may not be empty' if jname.empty?
     raise 'The "file" of the durable is nil' if file.nil?
     raise "The file '#{file}' is absent" unless File.exist?(file)
+    raise "The file '#{file}' is too big for durable_place(), use durable_save() instead" if File.size(file) > 1024
     id = nil
     Tempfile.open do |f|
       File.write(f.path, 'placeholder')
@@ -316,9 +316,6 @@ class BazaRb
         throw :"Durable ##{id} (#{file}, #{File.size(file)} bytes) placed for job \"#{jname}\" at #{@host}"
       end
     end
-    durable_lock(id, user_agent)
-    durable_save(id, file, chunk_size:)
-    durable_unlock(id, user_agent)
     id
   end
 
