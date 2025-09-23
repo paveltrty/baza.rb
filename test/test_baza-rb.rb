@@ -98,10 +98,10 @@ class TestBazaRb < Minitest::Test
       file = File.join(dir, 'before.bin')
       before = 'hello, Джеф!' * 10
       File.binwrite(file, before)
-      jname = fake_name
-      refute(LIVE.durable_find(jname, File.basename(file)))
-      id = LIVE.durable_place(jname, file)
-      assert_equal(id, LIVE.durable_find(jname, File.basename(file)))
+      pname = fake_name
+      refute(LIVE.durable_find(pname, File.basename(file)))
+      id = LIVE.durable_place(pname, file)
+      assert_equal(id, LIVE.durable_find(pname, File.basename(file)))
       owner = fake_name
       LIVE.durable_lock(id, owner)
       LIVE.durable_load(id, file)
@@ -572,6 +572,7 @@ class TestBazaRb < Minitest::Test
         body: {
           '_csrf' => 'csrf-token',
           'name' => 'test-valve',
+          'pname' => 'test-valve',
           'badge' => 'test-badge',
           'why' => 'test reason',
           'result' => 'new result'
@@ -584,7 +585,7 @@ class TestBazaRb < Minitest::Test
 
   def test_durable_find_found
     WebMock.disable_net_connect!
-    stub_request(:get, 'https://example.org:443/durables/find?jname=test-job&file=test.txt')
+    stub_request(:get, 'https://example.org:443/durables/find?file=test.txt&name=test-job&pname=test-job')
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 200, body: '42')
     id = fake_baza.durable_find('test-job', 'test.txt')
@@ -593,7 +594,7 @@ class TestBazaRb < Minitest::Test
 
   def test_durable_find_not_found
     WebMock.disable_net_connect!
-    stub_request(:get, 'https://example.org:443/durables/find?jname=test-job&file=test.txt')
+    stub_request(:get, 'https://example.org:443/durables/find?file=test.txt&name=test-job&pname=test-job')
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 404)
     id = fake_baza.durable_find('test-job', 'test.txt')

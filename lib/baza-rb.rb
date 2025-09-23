@@ -102,21 +102,21 @@ class BazaRb
 
   # Push factbase to the server to create a new job.
   #
-  # @param [String] name The unique name of the job on the server
+  # @param [String] name The unique name of the product on the server
   # @param [String] data The binary data to push to the server (factbase content)
   # @param [Array<String>] meta List of metadata strings to attach to the job
   # @param [Integer] chunk_size Maximum size of one chunk
   # @raise [ServerFailure] If the push operation fails
-  def push(name, data, meta, chunk_size: DEFAULT_CHUNK_SIZE)
-    raise 'The "name" of the job is nil' if name.nil?
-    raise 'The "name" of the job may not be empty' if name.empty?
+  def push(pname, data, meta, chunk_size: DEFAULT_CHUNK_SIZE)
+    raise 'The "name" of the job is nil' if pname.nil?
+    raise 'The "name" of the job may not be empty' if pname.empty?
     raise 'The "data" of the job is nil' if data.nil?
     raise 'The "meta" of the job is nil' if meta.nil?
     elapsed(@loog) do
       Tempfile.open do |file|
         File.binwrite(file.path, data)
         upload(
-          home.append('push').append(name),
+          home.append('push').append(pname),
           file.path,
           headers.merge(
             'X-Zerocracy-Meta' => meta.map { |v| Base64.encode64(v).delete("\n") }.join(' ')
@@ -217,41 +217,41 @@ class BazaRb
 
   # Lock the name.
   #
-  # @param [String] name The name of the job on the server
+  # @param [String] pname The name of the product on the server
   # @param [String] owner The owner of the lock (any string)
   # @raise [RuntimeError] If the name is already locked
   # @raise [ServerFailure] If the lock operation fails
-  def lock(name, owner)
-    raise 'The "name" of the job is nil' if name.nil?
-    raise 'The "name" of the job may not be empty' if name.empty?
+  def lock(pname, owner)
+    raise 'The "pname" of the product is nil' if pname.nil?
+    raise 'The "pname" of the product may not be empty' if pname.empty?
     raise 'The "owner" of the lock is nil' if owner.nil?
     elapsed(@loog) do
       ret = post(
-        home.append('lock').append(name),
+        home.append('lock').append(pname),
         { 'owner' => owner },
         [302, 409]
       )
-      throw :"Job name '#{name}' locked at #{@host}" if ret.code == 302
-      raise "Failed to lock '#{name}' job at #{@host}, it's already locked"
+      throw :"Product name #{pname.inspect} locked at #{@host}" if ret.code == 302
+      raise "Failed to lock #{pname.inspect} product at #{@host}, it's already locked"
     end
   end
 
   # Unlock the name.
   #
-  # @param [String] name The name of the job on the server
+  # @param [String] pname The name of the job on the server
   # @param [String] owner The owner of the lock (any string)
   # @raise [ServerFailure] If the unlock operation fails
-  def unlock(name, owner)
-    raise 'The "name" of the job is nil' if name.nil?
-    raise 'The "name" of the job may not be empty' if name.empty?
+  def unlock(pname, owner)
+    raise 'The "pname" of the job is nil' if pname.nil?
+    raise 'The "pname" of the job may not be empty' if pname.empty?
     raise 'The "owner" of the lock is nil' if owner.nil?
     raise 'The "owner" of the lock may not be empty' if owner.empty?
     elapsed(@loog) do
       post(
-        home.append('unlock').append(name),
+        home.append('unlock').append(pname),
         { 'owner' => owner }
       )
-      throw :"Job name '#{name}' unlocked at #{@host}"
+      throw :"Job name #{pname.inspect} unlocked at #{@host}"
     end
   end
 
@@ -274,16 +274,16 @@ class BazaRb
 
   # Check whether the name of the job exists on the server.
   #
-  # @param [String] name The name of the job on the server
+  # @param [String] name The name of the product on the server
   # @return [Boolean] TRUE if such name exists
-  def name_exists?(name)
-    raise 'The "name" of the job is nil' if name.nil?
-    raise 'The "name" of the job may not be empty' if name.empty?
+  def name_exists?(pname)
+    raise 'The "pname" of the product is nil' if pname.nil?
+    raise 'The "pname" of the product may not be empty' if pname.empty?
     exists = false
     elapsed(@loog) do
-      ret = get(home.append('exists').append(name))
+      ret = get(home.append('exists').append(pname))
       exists = ret.body == 'yes'
-      throw :"The name \"#{name}\" #{exists ? 'exists' : "doesn't exist"} at #{@host}"
+      throw :"The name #{pname.inspect} #{exists ? 'exists' : "doesn't exist"} at #{@host}"
     end
     exists
   end
@@ -295,13 +295,13 @@ class BazaRb
   # ignored. It is expected to use only small placeholder files, not real
   # data.
   #
-  # @param [String] jname The name of the job on the server
+  # @param [String] pname The name of the product on the server
   # @param [String] file The path to the file to upload
   # @return [Integer] The ID of the created durable
   # @raise [ServerFailure] If the upload fails
-  def durable_place(jname, file)
-    raise 'The "jname" of the durable is nil' if jname.nil?
-    raise 'The "jname" of the durable may not be empty' if jname.empty?
+  def durable_place(pname, file)
+    raise 'The "pname" of the durable is nil' if pname.nil?
+    raise 'The "pname" of the durable may not be empty' if pname.empty?
     raise 'The "file" of the durable is nil' if file.nil?
     raise "The file '#{file}' is absent" unless File.exist?(file)
     if File.size(file) > 1024
@@ -312,13 +312,14 @@ class BazaRb
       ret = post(
         home.append('durables').append('place'),
         {
-          'jname' => jname,
+          'pname' => pname,
+          'jname' => pname,
           'file' => File.basename(file),
           'zip' => File.open(file, 'rb')
         }
       )
       id = ret.headers['X-Zerocracy-DurableId'].to_i
-      throw :"Durable ##{id} (#{file}, #{File.size(file)} bytes) placed for job \"#{jname}\" at #{@host}"
+      throw :"Durable ##{id} (#{file}, #{File.size(file)} bytes) placed for job \"#{pname}\" at #{@host}"
     end
     id
   end
@@ -399,22 +400,22 @@ class BazaRb
 
   # Find a durable by job name and file name.
   #
-  # @param [String] jname The name of the job
+  # @param [String] pname The name of the job
   # @param [String] file The file name
   # @return [Integer, nil] The ID of the durable if found, nil if not found
-  def durable_find(jname, file)
-    raise 'The "jname" is nil' if jname.nil?
-    raise 'The "jname" may not be empty' if jname.empty?
+  def durable_find(pname, file)
+    raise 'The "pname" is nil' if pname.nil?
+    raise 'The "pname" may not be empty' if pname.empty?
     raise 'The "file" is nil' if file.nil?
     raise 'The "file" may not be empty' if file.empty?
     id = nil
     elapsed(@loog) do
-      ret = get(home.append('durables').append('find').add(jname:, file:), [200, 404])
+      ret = get(home.append('durables').append('find').add(name: pname, pname:, file:), [200, 404])
       if ret.code == 200
         id = ret.body.to_i
-        throw :"Found durable ##{id} for job \"#{jname}\" file \"#{file}\" at #{@host}"
+        throw :"Found durable ##{id} for job \"#{pname}\" file \"#{file}\" at #{@host}"
       else
-        throw :"Durable not found for job \"#{jname}\" file \"#{file}\" at #{@host}"
+        throw :"Durable not found for job \"#{pname}\" file \"#{file}\" at #{@host}"
       end
     end
     id
@@ -530,15 +531,15 @@ class BazaRb
   # for the given badge already exists, it's returned. Otherwise, the block
   # is executed and its result is cached.
   #
-  # @param [String] name Name of the job
+  # @param [String] name Name of the product
   # @param [String] badge Unique identifier for this valve/computation
   # @param [String] why The reason/description for entering this valve
   # @param [nil|Integer] job Optional job ID to associate with this valve
   # @yield Block that computes the result if not cached
   # @return [String] The cached result or newly computed result from the block
   # @raise [ServerFailure] If the valve operation fails
-  def enter(name, badge, why, job)
-    elapsed(@loog, good: "Entered valve #{badge} to #{name}") do
+  def enter(pname, badge, why, job)
+    elapsed(@loog, good: "Entered valve #{badge} to #{pname}") do
       retry_it do
         ret = get(home.append('valves').append('result').add(badge:), [200, 204])
         return ret.body if ret.code == 200
@@ -548,7 +549,8 @@ class BazaRb
         post(
           uri,
           {
-            'name' => name,
+            'name' => pname,
+            'pname' => pname,
             'badge' => badge,
             'why' => why,
             'result' => r.to_s
