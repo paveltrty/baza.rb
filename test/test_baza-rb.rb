@@ -585,7 +585,7 @@ class TestBazaRb < Minitest::Test
 
   def test_durable_find_found
     WebMock.disable_net_connect!
-    stub_request(:get, 'https://example.org:443/durables/find?file=test.txt&name=test-job&pname=test-job')
+    stub_request(:get, 'https://example.org:443/durables/find?file=test.txt&jname=test-job&pname=test-job')
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 200, body: '42')
     id = fake_baza.durable_find('test-job', 'test.txt')
@@ -594,7 +594,7 @@ class TestBazaRb < Minitest::Test
 
   def test_durable_find_not_found
     WebMock.disable_net_connect!
-    stub_request(:get, 'https://example.org:443/durables/find?file=test.txt&name=test-job&pname=test-job')
+    stub_request(:get, 'https://example.org:443/durables/find?file=test.txt&jname=test-job&pname=test-job')
       .with(headers: { 'X-Zerocracy-Token' => '000' })
       .to_return(status: 404)
     id = fake_baza.durable_find('test-job', 'test.txt')
