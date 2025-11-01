@@ -828,6 +828,12 @@ class BazaRb
           ("ranged as #{ret.headers['Content-Range'].inspect}" if ret.headers['Content-Range'])
         ]
         ret = checked(ret, [200, 206, 204, 302])
+        sticky = ret.headers && ret.headers['X-Zerocracy-Host']
+        if sticky && !sticky.empty? && sticky != @host
+          @loog.debug("Switching host from #{@host} to #{sticky} as per X-Zerocracy-Host")
+          @host = sticky
+          uri = uri.host(@host)
+        end
         if blanks.include?(ret.code)
           sleep(2)
           next
@@ -907,6 +913,12 @@ class BazaRb
               end
             )
           end
+        sticky = ret.headers && ret.headers['X-Zerocracy-Host']
+        if sticky && !sticky.empty? && sticky != @host
+          @loog.debug("Switching host from #{@host} to #{sticky} as per X-Zerocracy-Host")
+          @host = sticky
+          uri = uri.host(@host)
+        end
         sent += params[:body].bytesize
         @loog.debug(
           [
