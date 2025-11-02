@@ -581,6 +581,7 @@ class BazaRb
   private
 
   # Update host from X-Zerocracy-Host header if present.
+  #
   # @param [Typhoeus::Response] ret The HTTP response containing headers
   # @param [Iri] uri The current URI object to update
   # @return [Iri] The updated URI object (or original if no valid header present)
@@ -589,19 +590,19 @@ class BazaRb
     sticky = ret.headers && ret.headers['X-Zerocracy-Host']
     return uri unless sticky
     return uri unless valid_hostname?(sticky)
-    new_host = sticky.strip
-    return uri if new_host == @host
+    new_host = sticky.strip.chomp('.')
     @host_mutex.synchronize do
-      # Double-check after acquiring lock (may have changed in another thread)
-      return uri if new_host == @host
-      @loog.debug("Switching host from #{@host} to #{new_host} as per X-Zerocracy-Host")
-      @host = new_host
+      if new_host != @host
+        @loog.debug("Switching host from #{@host} to #{new_host} as per X-Zerocracy-Host")
+        @host = new_host
+      end
       uri = uri.host(@host)
     end
     uri
   end
 
   # Validate hostname format according to RFC 1123.
+  #
   # @param [String] hostname The hostname to validate
   # @return [Boolean] True if valid, false otherwise
   def valid_hostname?(name)
