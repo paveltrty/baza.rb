@@ -696,41 +696,48 @@ class BazaRb
     allowed = [allowed] unless allowed.is_a?(Array)
     mtd = (ret.request.original_options[:method] || '???').upcase
     url = ret.effective_url
+
     if ret.return_code == :operation_timedout
       msg = "#{mtd} #{url} timed out in #{ret.total_time}s"
       @loog.error(msg)
       raise TimedOut, msg
     end
+
     log = "#{mtd} #{url} -> #{ret.code} (#{format('%0.2f', ret.total_time)}s)"
+
     if allowed.include?(ret.code)
       @loog.debug(log)
       return ret
     end
-    @loog.debug("#{log}\n  #{(ret.headers || {}).map { |k, v| "#{k}: #{v}" }.join("\n  ")}")
+
+    # Log **all response headers**
     headers = ret.headers || {}
-    msg = [
-      "Invalid response code ##{ret.code} ",
-      "at #{mtd} #{url}",
-      headers['X-Zerocracy-Flash'] ? " (#{headers['X-Zerocracy-Flash'].inspect})" : ''
-    ].join
-    case ret.code
-    when 500
-      msg +=
-        ", most probably it's an internal error on the server, " \
-        'please report this to https://github.com/zerocracy/baza.rb'
-    when 503
-      msg +=
-        ", most probably it's an internal error on the server (#{headers['X-Zerocracy-Failure'].inspect}), " \
-        'please report this to https://github.com/zerocracy/baza.rb'
-    when 404
-      msg +=
-        ", most probably you are trying to reach a wrong server, which doesn't " \
-        'have the URL that it is expected to have'
-    when 0
-      msg +=
-        ', most likely a connection failure, timeout, or SSL error ' \
-        "(r:#{ret.return_code}, m:#{ret.return_message})"
+    if headers.any?
+      headers_log = headers.map { |k, v| "  #{k}: #{v}" }.join("\n")
+      @loog.debug("#{log}\n#{headers_log}")
+      @loog.error("#{log}\n#{headers_log}")
+    else
+      @loog.debug("#{log}\n  (no headers returned)")
+      @loog.error("#{log}\n  (no headers returned)")
     end
+
+    # Compose detailed error message
+    failure_info = []
+    failure_info << "X-Zerocracy-Failure=#{headers['X-Zerocracy-Failure'].inspect}" if headers['X-Zerocracy-Failure']
+    failure_info << "X-Zerocracy-FailureMark=#{headers['X-Zerocracy-FailureMark'].inspect}" if headers['X-Zerocracy-FailureMark']
+    failure_details = failure_info.empty? ? '' : " (#{failure_info.join(', ')})"
+
+    msg = "Invalid response code ##{ret.code} at #{mtd} #{url}#{failure_details}"
+
+    case ret.code
+    when 500, 503
+      msg += ", most probably it's an internal error on the server, please report this to https://github.com/zerocracy/baza.rb"
+    when 404
+      msg += ", most probably you are trying to reach a wrong server, which doesn't have the expected URL"
+    when 0
+      msg += ", most likely a connection failure, timeout, or SSL error (r:#{ret.return_code}, m:#{ret.return_message})"
+    end
+
     @loog.error(msg)
     raise ServerFailure, msg
   end
@@ -907,6 +914,7 @@ class BazaRb
               end
             )
           end
+        uri = update_host_from_response(ret, uri)
         sent += params[:body].bytesize
         @loog.debug(
           [
