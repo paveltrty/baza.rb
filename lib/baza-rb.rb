@@ -724,7 +724,9 @@ class BazaRb
     # Compose detailed error message
     failure_info = []
     failure_info << "X-Zerocracy-Failure=#{headers['X-Zerocracy-Failure'].inspect}" if headers['X-Zerocracy-Failure']
-    failure_info << "X-Zerocracy-FailureMark=#{headers['X-Zerocracy-FailureMark'].inspect}" if headers['X-Zerocracy-FailureMark']
+    if headers['X-Zerocracy-FailureMark']
+      failure_info << "X-Zerocracy-FailureMark=#{headers['X-Zerocracy-FailureMark'].inspect}"
+    end
     failure_details = failure_info.empty? ? '' : " (#{failure_info.join(', ')})"
 
     msg = "Invalid response code ##{ret.code} at #{mtd} #{url}#{failure_details}"
