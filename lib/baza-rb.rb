@@ -70,6 +70,7 @@ class BazaRb
     @retries = retries
     @pause = pause
     @compress = compress
+    @host_mutex = Mutex.new
   end
 
   # Get GitHub login name of the logged in user.
@@ -579,6 +580,37 @@ class BazaRb
 
   private
 
+  # Update host from X-Zerocracy-Host header if present.
+  # @param [Typhoeus::Response] ret The HTTP response containing headers
+  # @param [Iri] uri The current URI object to update
+  # @return [Iri] The updated URI object (or original if no valid header present)
+  # @note Invalid hostnames are logged as warnings and ignored
+  def update_host_from_response(ret, uri)
+    sticky = ret.headers && ret.headers['X-Zerocracy-Host']
+    return uri unless sticky
+    return uri unless valid_hostname?(sticky)
+    new_host = sticky.strip
+    return uri if new_host == @host
+    @host_mutex.synchronize do
+      # Double-check after acquiring lock (may have changed in another thread)
+      return uri if new_host == @host
+      @loog.debug("Switching host from #{@host} to #{new_host} as per X-Zerocracy-Host")
+      @host = new_host
+      uri = uri.host(@host)
+    end
+    uri
+  end
+
+  # Validate hostname format according to RFC 1123.
+  # @param [String] hostname The hostname to validate
+  # @return [Boolean] True if valid, false otherwise
+  def valid_hostname?(name)
+    return false unless name.is_a?(String)
+    name = name.strip
+    return false if name.empty? || name.bytesize > 253
+    !!name.match?(/\A[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.?\z/)
+  end
+
   # Get the user agent string for HTTP requests.
   #
   # @return [String] The user agent string
@@ -828,12 +860,7 @@ class BazaRb
           ("ranged as #{ret.headers['Content-Range'].inspect}" if ret.headers['Content-Range'])
         ]
         ret = checked(ret, [200, 206, 204, 302])
-        sticky = ret.headers && ret.headers['X-Zerocracy-Host']
-        if sticky && !sticky.empty? && sticky != @host
-          @loog.debug("Switching host from #{@host} to #{sticky} as per X-Zerocracy-Host")
-          @host = sticky
-          uri = uri.host(@host)
-        end
+        uri = update_host_from_response(ret, uri)
         if blanks.include?(ret.code)
           sleep(2)
           next
@@ -913,12 +940,7 @@ class BazaRb
               end
             )
           end
-        sticky = ret.headers && ret.headers['X-Zerocracy-Host']
-        if sticky && !sticky.empty? && sticky != @host
-          @loog.debug("Switching host from #{@host} to #{sticky} as per X-Zerocracy-Host")
-          @host = sticky
-          uri = uri.host(@host)
-        end
+        uri = update_host_from_response(ret, uri)
         sent += params[:body].bytesize
         @loog.debug(
           [
