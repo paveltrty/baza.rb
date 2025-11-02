@@ -914,7 +914,6 @@ class BazaRb
               end
             )
           end
-        uri = update_host_from_response(ret, uri)
         sent += params[:body].bytesize
         @loog.debug(
           [
