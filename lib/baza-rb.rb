@@ -102,7 +102,7 @@ class BazaRb
 
   # Push factbase to the server to create a new job.
   #
-  # @param [String] name The unique name of the product on the server
+  # @param [String] pname The unique name of the product on the server
   # @param [String] data The binary data to push to the server (factbase content)
   # @param [Array<String>] meta List of metadata strings to attach to the job
   # @param [Integer] chunk_size Maximum size of one chunk
@@ -274,7 +274,7 @@ class BazaRb
 
   # Check whether the name of the job exists on the server.
   #
-  # @param [String] name The name of the product on the server
+  # @param [String] pname The name of the product on the server
   # @return [Boolean] TRUE if such name exists
   def name_exists?(pname)
     raise 'The "pname" of the product is nil' if pname.nil?
@@ -531,7 +531,7 @@ class BazaRb
   # for the given badge already exists, it's returned. Otherwise, the block
   # is executed and its result is cached.
   #
-  # @param [String] name Name of the product
+  # @param [String] pname Name of the product
   # @param [String] badge Unique identifier for this valve/computation
   # @param [String] why The reason/description for entering this valve
   # @param [nil|Integer] job Optional job ID to associate with this valve
