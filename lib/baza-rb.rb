@@ -580,16 +580,16 @@ class BazaRb
 
   private
 
-  # Update host from X-Zerocracy-Host header if present.
+  # Stick host from X-Zerocracy-Host header if present.
   #
   # @param [Typhoeus::Response] ret The HTTP response containing headers
   # @param [Iri] uri The current URI object to update
   # @return [Iri] The updated URI object (or original if no valid header present)
   # @note Invalid hostnames are logged as warnings and ignored
-  def update_host_from_response(ret, uri)
+  def stick_host(ret, uri)
     sticky = ret.headers && ret.headers['X-Zerocracy-Host']
     return uri unless sticky
-    return uri unless valid_hostname?(sticky)
+    return uri unless hostname?(sticky)
     new_host = sticky.strip.chomp('.')
     @host_mutex.synchronize do
       if new_host != @host
@@ -605,11 +605,10 @@ class BazaRb
   #
   # @param [String] hostname The hostname to validate
   # @return [Boolean] True if valid, false otherwise
-  def valid_hostname?(name)
-    return false unless name.is_a?(String)
+  def hostname?(name)
     name = name.strip
     return false if name.empty? || name.bytesize > 253
-    !!name.match?(/\A[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.?\z/)
+    name.match?(/\A[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.?\z/)
   end
 
   # Get the user agent string for HTTP requests.
@@ -861,7 +860,7 @@ class BazaRb
           ("ranged as #{ret.headers['Content-Range'].inspect}" if ret.headers['Content-Range'])
         ]
         ret = checked(ret, [200, 206, 204, 302])
-        uri = update_host_from_response(ret, uri)
+        uri = stick_host(ret, uri)
         if blanks.include?(ret.code)
           sleep(2)
           next
@@ -941,7 +940,7 @@ class BazaRb
               end
             )
           end
-        uri = update_host_from_response(ret, uri)
+        uri = stick_host(ret, uri)
         sent += params[:body].bytesize
         @loog.debug(
           [

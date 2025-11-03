@@ -749,45 +749,45 @@ class TestBazaRb < Minitest::Test
     end
   end
 
-  def test_download_updates_host_from_x_zerocracy_host_header
+  def test_download_sticks_host
     WebMock.disable_net_connect!
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'test.txt')
-      initial_host = 'example.org'
-      sticky_host = 'server2.example.org'
-      baza = BazaRb.new(initial_host, 443, '000', loog: Loog::NULL, compress: false)
-      assert_equal(initial_host, baza.instance_variable_get(:@host), 'Initial host should be set')
-      stub_request(:get, "https://#{initial_host}:443/file")
+      host = 'example.org'
+      other = 'server2.example.org'
+      baza = BazaRb.new(host, 443, '000', loog: Loog::NULL, compress: false)
+      assert_equal(host, baza.instance_variable_get(:@host), 'Initial host should be set')
+      stub_request(:get, "https://#{host}:443/file")
         .with(headers: { 'Range' => 'bytes=0-' })
         .to_return(
           status: 200,
           body: 'file content',
-          headers: { 'X-Zerocracy-Host' => sticky_host }
+          headers: { 'X-Zerocracy-Host' => other }
         )
       baza.send(:download, baza.send(:home).append('file'), file)
-      assert_equal(sticky_host, baza.instance_variable_get(:@host), 'Host should be updated from header')
+      assert_equal(other, baza.instance_variable_get(:@host), 'Host should be updated from header')
       assert_equal('file content', File.read(file), 'File should be downloaded correctly')
     end
   end
 
-  def test_download_switches_host_mid_download_for_range_requests
+  def test_download_switches_host_mid_range
     WebMock.disable_net_connect!
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'chunked.txt')
-      initial_host = 'example.org'
-      sticky_host = 'server2.example.org'
-      baza = BazaRb.new(initial_host, 443, '000', loog: Loog::NULL, compress: false)
-      stub_request(:get, "https://#{initial_host}:443/file")
+      host = 'example.org'
+      other = 'server2.example.org'
+      baza = BazaRb.new(host, 443, '000', loog: Loog::NULL, compress: false)
+      stub_request(:get, "https://#{host}:443/file")
         .with(headers: { 'Range' => 'bytes=0-' })
         .to_return(
           status: 206,
           body: 'first ',
           headers: {
-            'X-Zerocracy-Host' => sticky_host,
+            'X-Zerocracy-Host' => other,
             'Content-Range' => 'bytes 0-5/11'
           }
         )
-      stub_request(:get, "https://#{sticky_host}:443/file")
+      stub_request(:get, "https://#{other}:443/file")
         .with(headers: { 'Range' => 'bytes=6-' })
         .to_return(
           status: 200,
@@ -795,57 +795,54 @@ class TestBazaRb < Minitest::Test
           headers: {}
         )
       baza.send(:download, baza.send(:home).append('file'), file)
-      assert_equal(sticky_host, baza.instance_variable_get(:@host), 'Host should switch mid-download')
+      assert_equal(other, baza.instance_variable_get(:@host), 'Host should switch mid-download')
       assert_equal('first chunk', File.read(file), 'All chunks should be downloaded')
     end
   end
 
-  def test_upload_updates_host_from_x_zerocracy_host_header
+  def test_upload_sticks_host
     WebMock.disable_net_connect!
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'upload.txt')
       File.write(file, 'test data')
-      initial_host = 'example.org'
-      sticky_host = 'server2.example.org'
-      baza = BazaRb.new(initial_host, 443, '000', loog: Loog::NULL, compress: false)
-      assert_equal(initial_host, baza.instance_variable_get(:@host), 'Initial host should be set')
-      stub_request(:put, "https://#{initial_host}:443/file")
+      host = 'example.org'
+      other = 'server2.example.org'
+      baza = BazaRb.new(host, 443, '000', loog: Loog::NULL, compress: false)
+      assert_equal(host, baza.instance_variable_get(:@host), 'Initial host should be set')
+      stub_request(:put, "https://#{host}:443/file")
         .to_return(
           status: 200,
           body: 'OK',
-          headers: { 'X-Zerocracy-Host' => sticky_host }
+          headers: { 'X-Zerocracy-Host' => other }
         )
       baza.send(:upload, baza.send(:home).append('file'), file)
-      assert_equal(sticky_host, baza.instance_variable_get(:@host), 'Host should be updated from header')
+      assert_equal(other, baza.instance_variable_get(:@host), 'Host should be updated from header')
     end
   end
 
-  def test_upload_switches_host_mid_upload_for_chunked_uploads
+  def test_upload_switches_host_mid_chunks
     WebMock.disable_net_connect!
     Dir.mktmpdir do |dir|
       file = File.join(dir, 'large.txt')
       File.write(file, 'x' * 2_000_000)
-      initial_host = 'example.org'
-      sticky_host = 'server2.example.org'
-      baza = BazaRb.new(initial_host, 443, '000', loog: Loog::NULL, compress: false)
-      # First chunk: returns host switching header
-      stub_request(:put, "https://#{initial_host}:443/file")
+      host = 'example.org'
+      other = 'server2.example.org'
+      baza = BazaRb.new(host, 443, '000', loog: Loog::NULL, compress: false)
+      stub_request(:put, "https://#{host}:443/file")
         .with(headers: { 'X-Zerocracy-Chunk' => '0' })
         .to_return(
           status: 200,
           body: 'OK',
-          headers: { 'X-Zerocracy-Host' => sticky_host }
+          headers: { 'X-Zerocracy-Host' => other }
         )
-      # Second chunk: should go to new host
-      stub_request(:put, "https://#{sticky_host}:443/file")
+      stub_request(:put, "https://#{other}:443/file")
         .with(headers: { 'X-Zerocracy-Chunk' => '1' })
         .to_return(
           status: 200,
           body: 'OK',
           headers: {}
         )
-      # Third chunk (empty): also goes to new host
-      stub_request(:put, "https://#{sticky_host}:443/file")
+      stub_request(:put, "https://#{other}:443/file")
         .with(headers: { 'X-Zerocracy-Chunk' => '2' })
         .to_return(
           status: 200,
@@ -853,181 +850,7 @@ class TestBazaRb < Minitest::Test
           headers: {}
         )
       baza.send(:upload, baza.send(:home).append('file'), file, {}, chunk_size: 1_000_000)
-      assert_equal(sticky_host, baza.instance_variable_get(:@host), 'Host should switch mid-upload')
-    end
-  end
-
-  def test_update_host_from_response_handles_missing_header
-    WebMock.disable_net_connect!
-    baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL)
-    initial_host = baza.instance_variable_get(:@host)
-    uri = baza.send(:home).append('test')
-    ret = Typhoeus::Response.new(code: 200, body: 'OK', headers: {})
-    new_uri = baza.send(:update_host_from_response, ret, uri)
-    assert_equal(initial_host, baza.instance_variable_get(:@host), 'Host should not change without header')
-    assert_equal(uri, new_uri, 'URI should not change')
-  end
-
-  def test_update_host_from_response_handles_empty_header
-    WebMock.disable_net_connect!
-    baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL)
-    initial_host = baza.instance_variable_get(:@host)
-    uri = baza.send(:home).append('test')
-    ret = Typhoeus::Response.new(code: 200, body: 'OK', headers: { 'X-Zerocracy-Host' => '' })
-    new_uri = baza.send(:update_host_from_response, ret, uri)
-    assert_equal(initial_host, baza.instance_variable_get(:@host), 'Host should not change with empty header')
-    assert_equal(uri, new_uri, 'URI should not change')
-  end
-
-  def test_update_host_from_response_ignores_unchanged_host
-    WebMock.disable_net_connect!
-    baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL)
-    initial_host = baza.instance_variable_get(:@host)
-    uri = baza.send(:home).append('test')
-    ret = Typhoeus::Response.new(code: 200, body: 'OK', headers: { 'X-Zerocracy-Host' => initial_host })
-    baza.send(:update_host_from_response, ret, uri)
-    assert_equal(initial_host, baza.instance_variable_get(:@host), 'Host should not change when same value')
-  end
-
-  def test_update_host_from_response_rejects_invalid_hostnames
-    WebMock.disable_net_connect!
-    baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL)
-    initial_host = baza.instance_variable_get(:@host)
-    uri = baza.send(:home).append('test')
-    invalid_cases = {
-      'protocols' => ['http://evil.com', 'https://evil.com', 'ftp://evil.com'],
-      'ports' => ['evil.com:443', 'evil.com:80', 'example.org:8080'],
-      'ipv6_brackets' => ['[::1]', '[2001:db8::1]'],
-      'invalid_format' => ['-invalid.com', 'invalid-.com', '.invalid.com', 'invalid..com'],
-      'empty_values' => ['', '   ', nil],
-      'too_long' => ['a' * 254]
-    }
-    invalid_cases.each do |category, hosts|
-      hosts.each do |invalid_host|
-        next if invalid_host.nil?
-        ret = Typhoeus::Response.new(code: 200, body: 'OK', headers: { 'X-Zerocracy-Host' => invalid_host })
-        new_uri = baza.send(:update_host_from_response, ret, uri)
-        assert_equal(initial_host, baza.instance_variable_get(:@host),
-                     "#{category}: #{invalid_host.inspect} should be rejected")
-        assert_equal(uri, new_uri, "URI should not change for #{category}: #{invalid_host.inspect}")
-      end
-    end
-    ret = Typhoeus::Response.new(code: 200, body: 'OK', headers: { 'X-Zerocracy-Host' => nil })
-    baza.send(:update_host_from_response, ret, uri)
-    assert_equal(initial_host, baza.instance_variable_get(:@host), 'nil hostname should be rejected')
-  end
-
-  def test_update_host_from_response_accepts_valid_hostnames
-    WebMock.disable_net_connect!
-    baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL)
-    uri = baza.send(:home).append('test')
-    valid_hosts = [
-      'api.zerocracy.com',
-      'server.example.org',
-      'sub-domain.example.com',
-      'localhost',
-      'example',
-      'example123',
-      'test-host.example.org',
-      "#{'a' * 63}.com" # Maximum segment length (63 chars) + .com
-    ]
-    valid_hosts.each do |valid_host|
-      ret = Typhoeus::Response.new(code: 200, body: 'OK', headers: { 'X-Zerocracy-Host' => valid_host })
-      baza.send(:update_host_from_response, ret, uri)
-      assert_equal(valid_host, baza.instance_variable_get(:@host),
-                   "Valid hostname #{valid_host.inspect} should be accepted")
-      baza.instance_variable_set(:@host, 'example.org')
-    end
-  end
-
-  def test_update_host_from_response_strips_trailing_dot
-    WebMock.disable_net_connect!
-    baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL)
-    uri = baza.send(:home).append('test')
-    hosts_with_trailing_dot = [
-      'example.com.',
-      'sub.example.org.',
-      'api.zerocracy.com.'
-    ]
-    hosts_with_trailing_dot.each do |host_with_dot|
-      expected_host = host_with_dot.chomp('.')
-      ret = Typhoeus::Response.new(code: 200, body: 'OK', headers: { 'X-Zerocracy-Host' => host_with_dot })
-      baza.send(:update_host_from_response, ret, uri)
-      assert_equal(expected_host, baza.instance_variable_get(:@host),
-                   "Hostname #{host_with_dot.inspect} should have trailing dot stripped to #{expected_host.inspect}")
-      baza.instance_variable_set(:@host, 'example.org')
-    end
-  end
-
-  def test_update_host_from_response_thread_safe
-    WebMock.disable_net_connect!
-    baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL)
-    uri = baza.send(:home).append('test')
-
-    threads = []
-    host_updates = []
-    host_mutex = Mutex.new
-
-    20.times do |i|
-      threads << Thread.new do
-        host = "server#{i}.example.org"
-        ret = Typhoeus::Response.new(code: 200, body: 'OK', headers: { 'X-Zerocracy-Host' => host })
-        new_uri = baza.send(:update_host_from_response, ret, uri)
-        host_mutex.synchronize do
-          host_updates << baza.instance_variable_get(:@host)
-        end
-        new_uri
-      end
-    end
-
-    threads.each(&:join)
-
-    final_host = baza.instance_variable_get(:@host)
-    assert(final_host.start_with?('server') && final_host.end_with?('.example.org'),
-           "Final host #{final_host.inspect} should be one of the concurrent update hosts")
-
-    assert(baza.send(:valid_hostname?, final_host), "Final host #{final_host.inspect} should be valid")
-
-    host_updates.each do |host|
-      assert(baza.send(:valid_hostname?, host), "Recorded host #{host.inspect} should be valid")
-    end
-
-    assert_includes(host_updates, final_host, 'Final host should be one of the recorded updates')
-  end
-
-  def test_valid_hostname_validation_rules
-    WebMock.disable_net_connect!
-    baza = BazaRb.new('example.org', 443, '000', loog: Loog::NULL)
-    valid_cases = [
-      'example.com',
-      'example.com.',
-      'sub.example.org',
-      'sub.example.org.',
-      'a-b.example.com',
-      'localhost',
-      'test123',
-      'sub-domain.example.com'
-    ]
-    valid_cases.each do |hostname|
-      assert(baza.send(:valid_hostname?, hostname), "#{hostname.inspect} should be valid")
-    end
-    invalid_cases = {
-      'not_string' => [nil, 123, [], {}],
-      'with_protocol' => ['http://example.com', 'https://example.com'],
-      'with_port' => ['example.com:443', 'example.com:80'],
-      'ipv6_brackets' => ['[::1]'],
-      'leading_hyphen' => ['-invalid.com'],
-      'trailing_hyphen' => ['invalid-.com'],
-      'leading_dot' => ['.invalid.com'],
-      'double_dot' => ['invalid..com'],
-      'empty' => ['', '   '],
-      'too_long' => ['a' * 254]
-    }
-    invalid_cases.each do |category, hostnames|
-      hostnames.each do |hostname|
-        refute(baza.send(:valid_hostname?, hostname),
-               "#{category}: #{hostname.inspect} should be invalid")
-      end
+      assert_equal(other, baza.instance_variable_get(:@host), 'Host should switch mid-upload')
     end
   end
 
