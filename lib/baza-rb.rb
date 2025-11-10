@@ -603,7 +603,7 @@ class BazaRb
 
   # Validate hostname format according to RFC 1123.
   #
-  # @param [String] hostname The hostname to validate
+  # @param [String] name The hostname to validate
   # @return [Boolean] True if valid, false otherwise
   def hostname?(name)
     name = name.strip
