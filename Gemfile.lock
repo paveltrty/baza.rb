@@ -73,7 +73,7 @@ GEM
     logger (1.7.0)
     loog (0.6.1)
       logger (~> 1.0)
-    minitest (5.26.0)
+    minitest (5.26.1)
     minitest-reporters (1.7.1)
       ansi
       builder
@@ -128,7 +128,7 @@ GEM
     rake (13.3.0)
     random-port (0.7.6)
       tago (~> 0.0)
-    rdoc (6.15.0)
+    rdoc (6.15.1)
       erb
       psych (>= 4.0.0)
       tsort
@@ -221,7 +221,7 @@ DEPENDENCIES
   rackup (~> 2.2)
   rake (~> 13.2)
   random-port (~> 0.7)
-  rdoc (= 6.15.0)
+  rdoc (= 6.15.1)
   rubocop (~> 1.73)
   rubocop-minitest (~> 0.38)
   rubocop-performance (~> 1.23)
